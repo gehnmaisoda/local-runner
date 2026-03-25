@@ -1,0 +1,179 @@
+import { createClient, type IPCClient, type TaskStatus, type ExecutionRecord } from "./ipc.ts";
+
+// --- Formatters ---
+
+function formatDate(iso: string | undefined): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return d.toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatDuration(record: ExecutionRecord): string {
+  if (!record.finishedAt) return "-";
+  const ms =
+    new Date(record.finishedAt).getTime() -
+    new Date(record.startedAt).getTime();
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${m}m${s}s`;
+}
+
+function statusIcon(status: TaskStatus): string {
+  if (status.isRunning) return "\u25B6"; // running
+  if (!status.task.enabled) return "\u25CB"; // disabled
+  if (status.lastRun?.status === "failure") return "\u2717"; // failed
+  if (status.lastRun?.status === "success") return "\u2713"; // success
+  return "\u25CB"; // no history
+}
+
+function pad(s: string, len: number): string {
+  return s.length >= len ? s.substring(0, len) : s + " ".repeat(len - s.length);
+}
+
+// --- Commands ---
+
+async function withClient<T>(fn: (client: IPCClient) => Promise<T>): Promise<T> {
+  const client = await createClient();
+  try {
+    return await fn(client);
+  } finally {
+    client.close();
+  }
+}
+
+export async function listTasks() {
+  await withClient(async (client) => {
+    const res = await client.send({ action: "list_tasks" });
+    if (!res.success || !res.tasks) {
+      console.error("Error:", res.error ?? "No tasks returned");
+      return;
+    }
+    if (res.tasks.length === 0) {
+      console.log("No tasks defined.");
+      return;
+    }
+
+    console.log(
+      `${pad("STATUS", 7)} ${pad("ID", 20)} ${pad("NAME", 24)} ${pad("NEXT RUN", 18)} ${pad("LAST", 8)}`
+    );
+    console.log("-".repeat(80));
+
+    for (const t of res.tasks) {
+      const icon = statusIcon(t);
+      const lastStatus = t.lastRun
+        ? t.lastRun.status === "success"
+          ? `\u2713 ${formatDuration(t.lastRun)}`
+          : `\u2717 ${formatDuration(t.lastRun)}`
+        : "-";
+      console.log(
+        `  ${pad(icon, 5)} ${pad(t.task.id, 20)} ${pad(t.task.name, 24)} ${pad(formatDate(t.nextRunAt), 18)} ${lastStatus}`
+      );
+    }
+  });
+}
+
+export async function runTask(taskId: string) {
+  await withClient(async (client) => {
+    const res = await client.send({ action: "run_task", taskId });
+    if (res.success) {
+      console.log(`Task "${taskId}" started.`);
+    } else {
+      console.error("Error:", res.error);
+    }
+  });
+}
+
+export async function stopTask(taskId: string) {
+  await withClient(async (client) => {
+    const res = await client.send({ action: "stop_task", taskId });
+    if (res.success) {
+      console.log(`Task "${taskId}" stopped.`);
+    } else {
+      console.error("Error:", res.error);
+    }
+  });
+}
+
+export async function showLogs(taskId?: string, limit = 20) {
+  await withClient(async (client) => {
+    const res = await client.send({
+      action: "get_history",
+      taskId,
+      limit,
+    });
+    if (!res.success || !res.history) {
+      console.error("Error:", res.error ?? "No history returned");
+      return;
+    }
+    if (res.history.length === 0) {
+      console.log("No execution history.");
+      return;
+    }
+
+    console.log(
+      `${pad("STATUS", 8)} ${pad("TASK", 20)} ${pad("STARTED", 18)} ${pad("DURATION", 10)} EXIT`
+    );
+    console.log("-".repeat(70));
+
+    for (const r of res.history) {
+      const icon = r.status === "success" ? "\u2713" : r.status === "failure" ? "\u2717" : "\u25B6";
+      console.log(
+        `  ${pad(icon, 6)} ${pad(r.taskName, 20)} ${pad(formatDate(r.startedAt), 18)} ${pad(formatDuration(r), 10)} ${r.exitCode ?? "-"}`
+      );
+    }
+  });
+}
+
+export async function showStatus() {
+  await withClient(async (client) => {
+    const res = await client.send({ action: "list_tasks" });
+    if (!res.success) {
+      console.error("Error:", res.error);
+      return;
+    }
+    const tasks = res.tasks ?? [];
+    const running = tasks.filter((t) => t.isRunning);
+    const enabled = tasks.filter((t) => t.task.enabled);
+
+    console.log(`Tasks: ${tasks.length} total, ${enabled.length} enabled, ${running.length} running`);
+
+    if (running.length > 0) {
+      console.log("\nRunning:");
+      for (const t of running) {
+        console.log(`  \u25B6 ${t.task.name} (${t.task.id})`);
+      }
+    }
+
+    const next = enabled
+      .filter((t) => t.nextRunAt)
+      .sort(
+        (a, b) =>
+          new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime()
+      );
+    if (next.length > 0) {
+      console.log("\nUpcoming:");
+      for (const t of next.slice(0, 5)) {
+        console.log(`  ${formatDate(t.nextRunAt)} - ${t.task.name}`);
+      }
+    }
+  });
+}
+
+export async function toggleTask(taskId: string) {
+  await withClient(async (client) => {
+    const res = await client.send({ action: "toggle_task", taskId });
+    if (res.success) {
+      console.log(`Task "${taskId}" toggled.`);
+    } else {
+      console.error("Error:", res.error);
+    }
+  });
+}

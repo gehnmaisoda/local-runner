@@ -1,0 +1,56 @@
+import Foundation
+import Core
+
+/// Slack Webhook を使って通知を送信する。
+final class SlackNotifier: @unchecked Sendable {
+    var webhookURL: String?
+
+    /// タスク失敗を Slack に通知する。
+    func notifyFailure(task: TaskDefinition, record: ExecutionRecord) {
+        guard let urlString = webhookURL, let url = URL(string: urlString) else { return }
+
+        let stderrPreview = String(record.stderr.prefix(500))
+        let text = [
+            ":x: *タスク実行失敗: \(task.name)*",
+            "• コマンド: `\(task.command)`",
+            "• 終了コード: \(record.exitCode ?? -1)",
+            "• 時刻: \(formatDate(record.startedAt))",
+            "• 実行時間: \(record.durationText)",
+        ].joined(separator: "\n")
+
+        let payload: [String: Any] = [
+            "text": text,
+            "blocks": [
+                [
+                    "type": "section",
+                    "text": ["type": "mrkdwn", "text": text]
+                ],
+                [
+                    "type": "section",
+                    "text": ["type": "mrkdwn", "text": "```\n\(stderrPreview)\n```"]
+                ]
+            ]
+        ]
+
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error {
+                print("[Slack] Send failed: \(error.localizedDescription)")
+            } else if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                print("[Slack] Unexpected status: \(http.statusCode)")
+            }
+        }.resume()
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return fmt.string(from: date)
+    }
+}

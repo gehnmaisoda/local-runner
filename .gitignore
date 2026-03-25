@@ -1,0 +1,13 @@
+# Swift
+daemon/.build/
+daemon/Package.resolved
+
+# Bun
+cli/node_modules/
+cli/bun.lock
+
+# macOS
+.DS_Store
+
+# Claude
+.claude/

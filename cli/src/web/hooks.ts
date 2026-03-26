@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { TaskStatus, ExecutionRecord, TaskDefinition } from "./types.ts";
+import { formatCountdown } from "./format.ts";
 
 export function useTasks() {
   const [tasks, setTasks] = useState<TaskStatus[]>([]);
@@ -77,6 +78,23 @@ export function useWebSocket(onMessage: () => void) {
   }, [onMessage]);
 
   return connected;
+}
+
+export function useCountdown(isoTarget: string | undefined): string | null {
+  const targetMs = isoTarget ? new Date(isoTarget).getTime() : null;
+
+  const [text, setText] = useState<string | null>(() =>
+    targetMs != null ? formatCountdown(targetMs) : null,
+  );
+
+  useEffect(() => {
+    if (targetMs == null) { setText(null); return; }
+    setText(formatCountdown(targetMs));
+    const id = setInterval(() => setText(formatCountdown(targetMs)), 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+
+  return text;
 }
 
 // --- Toast notifications ---

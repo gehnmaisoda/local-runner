@@ -29,5 +29,5 @@ wakeDetector.start()
 
 print("[local-runner] 起動しました (PID: \(ProcessInfo.processInfo.processIdentifier))")
 
-// プロセスを維持
-dispatchMain()
+// プロセスを維持（RunLoop で Timer を駆動する）
+RunLoop.main.run()

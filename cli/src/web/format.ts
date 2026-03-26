@@ -1,15 +1,17 @@
 import type { ExecutionRecord, Schedule } from "./types.ts";
 
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
 export function formatDate(iso: string | undefined): string {
   if (!iso) return "-";
   const d = new Date(iso);
-  return d.toLocaleString("ja-JP", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const w = WEEKDAYS[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${mm}/${dd}(${w}) ${hh}:${mi}:${ss}`;
 }
 
 export function formatDuration(record: ExecutionRecord): string {
@@ -35,6 +37,30 @@ export function statusLabel(status: ExecutionRecord["status"]): string {
     case "failure": return "失敗";
     case "stopped": return "停止";
     case "running": return "実行中";
+  }
+}
+
+export function formatCountdown(targetMs: number): string {
+  const diff = targetMs - Date.now();
+  if (diff <= 0) return "まもなく";
+  const totalSec = Math.ceil(diff / 1000);
+  if (totalSec < 60) return `${totalSec}秒`;
+  if (totalSec < 3600) {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}分${s}秒`;
+  }
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  return `${h}時間${m}分`;
+}
+
+export function statusIcon(status: ExecutionRecord["status"]): string {
+  switch (status) {
+    case "success": return "\u2713"; // ✓
+    case "failure": return "\u2717"; // ✗
+    case "stopped": return "\u25A0"; // ■
+    default: return "";
   }
 }
 

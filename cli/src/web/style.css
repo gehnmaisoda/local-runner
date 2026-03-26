@@ -292,19 +292,6 @@ button.new-task-btn {
   margin-top: 1px;
 }
 
-.task-list-item-last {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-}
-
-.task-list-item-last.success { color: var(--green); }
-.task-list-item-last.failure { color: var(--red); }
-.task-list-item-last.stopped { color: var(--yellow); }
-
 /* --- Detail panel (right) --- */
 .task-detail-panel {
   background: var(--bg-raised);
@@ -395,6 +382,11 @@ button.new-task-btn {
   background: var(--accent-dim);
   padding: 4px 10px;
   border-radius: 99px;
+}
+
+.next-run-countdown {
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 .log-empty-hint {
@@ -669,26 +661,6 @@ button.new-task-btn {
   color: var(--text-tertiary);
 }
 
-.log-row-duration {
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.log-row-exit {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--red);
-}
-
-.log-row-badge {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 99px;
-  letter-spacing: 0.02em;
-}
-
 .load-more-btn {
   width: 100%;
   padding: 8px;
@@ -706,12 +678,6 @@ button.new-task-btn {
 .load-more-btn:hover {
   color: var(--text-secondary);
 }
-
-.log-row-badge.success { color: var(--green); background: var(--green-dim); }
-.log-row-badge.failure { color: var(--red); background: var(--red-dim); }
-.log-row-badge.stopped { color: var(--yellow); background: var(--yellow-dim); }
-.log-row-badge.running { color: var(--blue); background: var(--blue-dim); }
-
 
 /* ======== TABLE ======== */
 .card-table {
@@ -776,6 +742,29 @@ button.new-task-btn {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* --- Status result (icon + duration) --- */
+.status-result {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 7ch;
+}
+
+.status-result-icon {
+  width: 1em;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.status-result.success { color: var(--green); }
+.status-result.failure { color: var(--red); }
+.status-result.stopped { color: var(--yellow); }
+.status-result.running { color: var(--blue); }
 
 .task-name {
   font-weight: 500;
@@ -1436,26 +1425,27 @@ button.new-task-btn {
   font-size: 13px;
   color: var(--text);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .timeline-time {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
-.timeline-duration {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-secondary);
-  min-width: 50px;
-}
-
-.timeline-exit {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--red);
-}
 
 /* ======== LOG ======== */
 .log-meta {

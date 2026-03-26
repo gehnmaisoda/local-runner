@@ -1,4 +1,7 @@
 import { IPCClient, getSocketPath, type IPCNotification } from "./ipc.ts";
+import { existsSync, statSync } from "fs";
+import { homedir } from "os";
+import { resolve } from "path";
 import index from "./web/index.html";
 
 // --- IPC connection with auto-reconnect ---
@@ -30,6 +33,24 @@ async function ensureIPC(): Promise<IPCClient> {
 async function handleAPI(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
+
+  // ディレクトリ存在チェック（IPC 不要、サーバーが直接確認）
+  // ホームディレクトリ配下のみ許可（パストラバーサル対策）
+  if (path === "/api/check-dir" && req.method === "GET") {
+    const dirPath = url.searchParams.get("path") ?? "";
+    if (!dirPath) return Response.json({ exists: false });
+    const home = homedir();
+    const expanded = resolve(dirPath.replace(/^~/, home));
+    if (!expanded.startsWith(home)) {
+      return Response.json({ exists: false });
+    }
+    try {
+      const exists = existsSync(expanded) && statSync(expanded).isDirectory();
+      return Response.json({ exists });
+    } catch {
+      return Response.json({ exists: false });
+    }
+  }
 
   try {
     const client = await ensureIPC();
@@ -80,11 +101,11 @@ async function handleAPI(req: Request): Promise<Response> {
       return Response.json(res);
     }
 
-    return Response.json({ error: "Not found" }, { status: 404 });
+    return Response.json({ error: "見つかりません" }, { status: 404 });
   } catch (err) {
     ipcClient = null;
     return Response.json(
-      { error: `Daemon connection failed: ${err}` },
+      { error: `デーモンへの接続に失敗: ${err}` },
       { status: 502 }
     );
   }
@@ -99,7 +120,7 @@ export async function startServer(preferredPort?: number) {
   try {
     await ensureIPC();
   } catch {
-    console.warn("Warning: Could not connect to daemon. Will retry on requests.");
+    console.warn("警告: デーモンに接続できませんでした。リクエスト時に再接続を試みます。");
   }
 
   const server = Bun.serve({
@@ -113,7 +134,7 @@ export async function startServer(preferredPort?: number) {
       // WebSocket upgrade
       if (url.pathname === "/ws") {
         if (server.upgrade(req)) return;
-        return new Response("WebSocket upgrade failed", { status: 400 });
+        return new Response("WebSocket アップグレードに失敗しました", { status: 400 });
       }
 
       // API routes
@@ -121,7 +142,7 @@ export async function startServer(preferredPort?: number) {
         return handleAPI(req);
       }
 
-      return new Response("Not found", { status: 404 });
+      return new Response("見つかりません", { status: 404 });
     },
     websocket: {
       open(ws) {

@@ -122,7 +122,7 @@ export class IPCClient {
           close() {
             client.socket = null;
             for (const p of client.pending) {
-              p.reject(new Error("Connection closed"));
+              p.reject(new Error("接続が切断されました"));
             }
             client.pending = [];
           },
@@ -166,7 +166,7 @@ export class IPCClient {
       } catch {
         const waiter = this.pending.shift();
         if (waiter) {
-          waiter.reject(new Error("Failed to parse IPC response"));
+          waiter.reject(new Error("IPC レスポンスの解析に失敗しました"));
         }
       }
     }
@@ -174,7 +174,7 @@ export class IPCClient {
 
   async send(request: IPCRequest): Promise<IPCResponse> {
     if (!this.socket) {
-      throw new Error("Not connected to helper. Is LocalRunnerHelper running?");
+      throw new Error("デーモンに接続されていません。デーモンは起動していますか？");
     }
     const encoded = encodeMessage(request);
     this.socket.write(encoded);
@@ -210,8 +210,8 @@ export async function createClient(): Promise<IPCClient> {
     await client.connect();
   } catch {
     console.error(
-      "Failed to connect to LocalRunnerHelper. Is it running?\n" +
-        `  Socket: ${getSocketPath()}`
+      "デーモンへの接続に失敗しました。デーモンは起動していますか？\n" +
+        `  ソケット: ${getSocketPath()}`
     );
     process.exit(1);
   }

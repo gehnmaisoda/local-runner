@@ -13,6 +13,8 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable {
     public let id: UUID
     public let taskId: String
     public let taskName: String
+    public let command: String
+    public let workingDirectory: String
     public let startedAt: Date
     public var finishedAt: Date?
     public var exitCode: Int32?
@@ -20,10 +22,17 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable {
     public var stderr: String
     public var status: ExecutionStatus
 
+    enum CodingKeys: String, CodingKey {
+        case id, taskId, taskName, command, startedAt, finishedAt, exitCode, stdout, stderr, status
+        case workingDirectory = "working_directory"
+    }
+
     public init(
         id: UUID = UUID(),
         taskId: String,
         taskName: String,
+        command: String = "",
+        workingDirectory: String = "~",
         startedAt: Date = Date(),
         finishedAt: Date? = nil,
         exitCode: Int32? = nil,
@@ -34,6 +43,8 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable {
         self.id = id
         self.taskId = taskId
         self.taskName = taskName
+        self.command = command
+        self.workingDirectory = workingDirectory
         self.startedAt = startedAt
         self.finishedAt = finishedAt
         self.exitCode = exitCode

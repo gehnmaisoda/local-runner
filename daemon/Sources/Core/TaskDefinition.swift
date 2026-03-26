@@ -58,7 +58,7 @@ public final class TaskStore: @unchecked Sendable {
     public func loadAll() -> [TaskDefinition] {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
-            print("[TaskStore] Failed to read directory: \(directory.path)")
+            print("[TaskStore] ディレクトリの読み込みに失敗: \(directory.path)")
             return []
         }
         return files
@@ -66,7 +66,7 @@ public final class TaskStore: @unchecked Sendable {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             .compactMap { url in
                 guard let task = loadTask(at: url) else {
-                    print("[TaskStore] Failed to parse: \(url.lastPathComponent)")
+                    print("[TaskStore] パース失敗: \(url.lastPathComponent)")
                     return nil as TaskDefinition?
                 }
                 return task

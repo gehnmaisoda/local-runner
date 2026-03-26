@@ -12,6 +12,8 @@ final class TaskExecutor: @unchecked Sendable {
         var record = ExecutionRecord(
             taskId: task.id,
             taskName: task.name,
+            command: task.command,
+            workingDirectory: task.workingDirectory ?? "~",
             startedAt: Date(),
             status: .running
         )
@@ -20,10 +22,9 @@ final class TaskExecutor: @unchecked Sendable {
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-l", "-c", task.command]
 
-        if let dir = task.workingDirectory {
-            let expandedDir = NSString(string: dir).expandingTildeInPath
-            process.currentDirectoryURL = URL(fileURLWithPath: expandedDir)
-        }
+        let dir = task.workingDirectory ?? "~"
+        let expandedDir = NSString(string: dir).expandingTildeInPath
+        process.currentDirectoryURL = URL(fileURLWithPath: expandedDir)
 
         // 環境変数を引き継ぐ
         process.environment = ProcessInfo.processInfo.environment
@@ -33,14 +34,10 @@ final class TaskExecutor: @unchecked Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        lock.lock()
-        runningProcesses[task.id] = process
-        lock.unlock()
+        lock.withLock { runningProcesses[task.id] = process }
 
         defer {
-            lock.lock()
-            runningProcesses.removeValue(forKey: task.id)
-            lock.unlock()
+            lock.withLock { runningProcesses.removeValue(forKey: task.id) }
         }
 
         do {

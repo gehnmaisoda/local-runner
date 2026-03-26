@@ -26,15 +26,33 @@ export function formatDuration(record: ExecutionRecord): string {
 
 // ISO weekday: 1=Mon...7=Sun
 const ISO_WEEKDAYS: Record<number, string> = {
-  1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun",
+  1: "月", 2: "火", 3: "水", 4: "木", 5: "金", 6: "土", 7: "日",
 };
+
+export function statusLabel(status: ExecutionRecord["status"]): string {
+  switch (status) {
+    case "success": return "成功";
+    case "failure": return "失敗";
+    case "stopped": return "停止";
+    case "running": return "実行中";
+  }
+}
 
 export function formatSchedule(schedule: Schedule): string {
   switch (schedule.type) {
-    case "every_minute": return "Every minute";
-    case "hourly": return `Hourly at :${String(schedule.minute ?? 0).padStart(2, "0")}`;
-    case "daily": return `Daily at ${schedule.time ?? "00:00"}`;
-    case "weekly": return `${ISO_WEEKDAYS[schedule.weekday ?? 1] ?? "Mon"} ${schedule.time ?? "00:00"}`;
+    case "every_minute": return "毎分";
+    case "hourly": return `毎時 :${String(schedule.minute ?? 0).padStart(2, "0")}`;
+    case "daily": return `毎日 ${schedule.time ?? "00:00"}`;
+    case "weekly": {
+      const wds = schedule.weekdays?.length ? schedule.weekdays : [schedule.weekday ?? 1];
+      const names = [...wds].sort((a, b) => a - b).map((d) => ISO_WEEKDAYS[d] ?? "月");
+      return `毎週${names.join("")} ${schedule.time ?? "00:00"}`;
+    }
+    case "monthly": {
+      const days = schedule.month_days ?? [1];
+      const strs = [...days].sort((a, b) => a - b).map((d) => d === -1 ? "末" : `${d}`);
+      return `毎月${strs.join("・")}日 ${schedule.time ?? "00:00"}`;
+    }
     case "cron": return schedule.expression ?? "cron";
     default: return schedule.type;
   }

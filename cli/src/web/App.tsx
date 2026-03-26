@@ -1,8 +1,7 @@
 import React, { useState, useCallback } from "react";
-import { useTasks, useTimeline, useWebSocket, runTask, stopTask, toggleTask, saveTask, deleteTask } from "./hooks.ts";
+import { useTasks, useTimeline, useWebSocket, runTask, stopTask, saveTask, deleteTask } from "./hooks.ts";
 import { TasksView } from "./TasksView.tsx";
 import { TimelineView } from "./TimelineView.tsx";
-import { TaskFormModal } from "./TaskForm.tsx";
 import { ToastContainer } from "./Toast.tsx";
 import type { TaskDefinition } from "./types.ts";
 
@@ -10,9 +9,8 @@ type Tab = "tasks" | "timeline";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("tasks");
-  const { tasks, reload: reloadTasks } = useTasks();
+  const { tasks, loading: tasksLoading, reload: reloadTasks } = useTasks();
   const { history, reload: reloadTimeline } = useTimeline();
-  const [editing, setEditing] = useState<TaskDefinition | "new" | null>(null);
 
   const handleMessage = useCallback(() => {
     reloadTasks();
@@ -29,24 +27,15 @@ export function App() {
     await stopTask(id);
     reloadTasks();
   };
-  const handleToggle = async (id: string) => {
-    await toggleTask(id);
-    reloadTasks();
+  const handleSave = async (task: TaskDefinition): Promise<boolean> => {
+    const ok = await saveTask(task);
+    if (ok) reloadTasks();
+    return ok;
   };
-  const handleEdit = (task: TaskDefinition) => {
-    setEditing(task);
-  };
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Delete task "${id}"?`)) return;
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`タスク "${name}" を削除しますか？`)) return;
     await deleteTask(id);
     reloadTasks();
-  };
-  const handleSave = async (task: TaskDefinition) => {
-    const ok = await saveTask(task);
-    if (ok) {
-      setEditing(null);
-      reloadTasks();
-    }
   };
 
   return (
@@ -61,7 +50,7 @@ export function App() {
           <h1>LocalRunner</h1>
         </div>
         <span className={`conn-badge ${connected ? "connected" : "disconnected"}`}>
-          {connected ? "Connected" : "Disconnected"}
+          {connected ? "接続中" : "切断"}
         </span>
       </header>
 
@@ -71,43 +60,28 @@ export function App() {
             className={`tab ${tab === "tasks" ? "active" : ""}`}
             onClick={() => setTab("tasks")}
           >
-            Tasks
+            タスク
           </button>
           <button
             className={`tab ${tab === "timeline" ? "active" : ""}`}
             onClick={() => setTab("timeline")}
           >
-            Timeline
+            実行ログ
           </button>
         </div>
 
         {tab === "tasks" && (
-          <>
-            <div className="toolbar">
-              <button className="btn btn-primary" onClick={() => setEditing("new")}>
-                + New Task
-              </button>
-            </div>
-            <TasksView
-              tasks={tasks}
-              onRun={handleRun}
-              onStop={handleStop}
-              onToggle={handleToggle}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          </>
+          <TasksView
+            tasks={tasks}
+            loading={tasksLoading}
+            onRun={handleRun}
+            onStop={handleStop}
+            onSave={handleSave}
+            onDelete={handleDelete}
+          />
         )}
         {tab === "timeline" && <TimelineView history={history} />}
       </main>
-
-      {editing && (
-        <TaskFormModal
-          initial={editing === "new" ? undefined : editing}
-          onSave={handleSave}
-          onCancel={() => setEditing(null)}
-        />
-      )}
 
       <ToastContainer />
     </>

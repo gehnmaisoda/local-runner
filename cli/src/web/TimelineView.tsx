@@ -11,7 +11,7 @@ export function TimelineView({ history }: Props) {
   const [viewingLog, setViewingLog] = useState<ExecutionRecord | null>(null);
 
   if (history.length === 0) {
-    return <div className="empty">No execution history yet.</div>;
+    return <div className="empty">実行履歴がまだありません。</div>;
   }
 
   return (
@@ -25,7 +25,7 @@ export function TimelineView({ history }: Props) {
               <span className="timeline-time">{formatDate(r.startedAt)}</span>
               <span className="timeline-duration">{formatDuration(r)}</span>
               {r.exitCode != null && r.exitCode !== 0 && (
-                <span className="timeline-exit">exit {r.exitCode}</span>
+                <span className="timeline-exit">終了コード {r.exitCode}</span>
               )}
             </div>
           </div>

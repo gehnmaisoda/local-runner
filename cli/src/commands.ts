@@ -53,16 +53,16 @@ export async function listTasks() {
   await withClient(async (client) => {
     const res = await client.send({ action: "list_tasks" });
     if (!res.success || !res.tasks) {
-      console.error("Error:", res.error ?? "No tasks returned");
+      console.error("エラー:", res.error ?? "タスクが返されませんでした");
       return;
     }
     if (res.tasks.length === 0) {
-      console.log("No tasks defined.");
+      console.log("タスクが定義されていません。");
       return;
     }
 
     console.log(
-      `${pad("STATUS", 7)} ${pad("ID", 20)} ${pad("NAME", 24)} ${pad("NEXT RUN", 18)} ${pad("LAST", 8)}`
+      `${pad("状態", 7)} ${pad("ID", 20)} ${pad("名前", 24)} ${pad("次回実行", 18)} ${pad("前回", 8)}`
     );
     console.log("-".repeat(80));
 
@@ -84,9 +84,9 @@ export async function runTask(taskId: string) {
   await withClient(async (client) => {
     const res = await client.send({ action: "run_task", taskId });
     if (res.success) {
-      console.log(`Task "${taskId}" started.`);
+      console.log(`タスク "${taskId}" を開始しました。`);
     } else {
-      console.error("Error:", res.error);
+      console.error("エラー:", res.error);
     }
   });
 }
@@ -95,9 +95,9 @@ export async function stopTask(taskId: string) {
   await withClient(async (client) => {
     const res = await client.send({ action: "stop_task", taskId });
     if (res.success) {
-      console.log(`Task "${taskId}" stopped.`);
+      console.log(`タスク "${taskId}" を停止しました。`);
     } else {
-      console.error("Error:", res.error);
+      console.error("エラー:", res.error);
     }
   });
 }
@@ -110,16 +110,16 @@ export async function showLogs(taskId?: string, limit = 20) {
       limit,
     });
     if (!res.success || !res.history) {
-      console.error("Error:", res.error ?? "No history returned");
+      console.error("エラー:", res.error ?? "履歴が返されませんでした");
       return;
     }
     if (res.history.length === 0) {
-      console.log("No execution history.");
+      console.log("実行履歴がありません。");
       return;
     }
 
     console.log(
-      `${pad("STATUS", 8)} ${pad("TASK", 20)} ${pad("STARTED", 18)} ${pad("DURATION", 10)} EXIT`
+      `${pad("状態", 8)} ${pad("タスク", 20)} ${pad("開始", 18)} ${pad("所要時間", 10)} 終了コード`
     );
     console.log("-".repeat(70));
 
@@ -136,17 +136,17 @@ export async function showStatus() {
   await withClient(async (client) => {
     const res = await client.send({ action: "list_tasks" });
     if (!res.success) {
-      console.error("Error:", res.error);
+      console.error("エラー:", res.error);
       return;
     }
     const tasks = res.tasks ?? [];
     const running = tasks.filter((t) => t.isRunning);
     const enabled = tasks.filter((t) => t.task.enabled);
 
-    console.log(`Tasks: ${tasks.length} total, ${enabled.length} enabled, ${running.length} running`);
+    console.log(`タスク: ${tasks.length} 件中 ${enabled.length} 件有効, ${running.length} 件実行中`);
 
     if (running.length > 0) {
-      console.log("\nRunning:");
+      console.log("\n実行中:");
       for (const t of running) {
         console.log(`  \u25B6 ${t.task.name} (${t.task.id})`);
       }
@@ -159,7 +159,7 @@ export async function showStatus() {
           new Date(a.nextRunAt!).getTime() - new Date(b.nextRunAt!).getTime()
       );
     if (next.length > 0) {
-      console.log("\nUpcoming:");
+      console.log("\n予定:");
       for (const t of next.slice(0, 5)) {
         console.log(`  ${formatDate(t.nextRunAt)} - ${t.task.name}`);
       }
@@ -171,9 +171,9 @@ export async function toggleTask(taskId: string) {
   await withClient(async (client) => {
     const res = await client.send({ action: "toggle_task", taskId });
     if (res.success) {
-      console.log(`Task "${taskId}" toggled.`);
+      console.log(`タスク "${taskId}" の有効/無効を切り替えました。`);
     } else {
-      console.error("Error:", res.error);
+      console.error("エラー:", res.error);
     }
   });
 }

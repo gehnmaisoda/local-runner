@@ -169,7 +169,10 @@ struct ScheduleTests {
         #expect(Schedule.everyMinute.displayText == "毎分")
         #expect(Schedule.daily(time: "09:00").displayText == "毎日 09:00")
         #expect(Schedule.hourly(minute: 30).displayText == "毎時 30分")
-        #expect(Schedule.weekly(weekday: 1, time: "10:00").displayText == "毎週月曜 10:00")
+        #expect(Schedule.weekly(weekday: 1, time: "10:00").displayText == "毎週月 10:00")
+        #expect(Schedule.weekly(weekdays: [1, 3, 5], time: "10:00").displayText == "毎週月水金 10:00")
+        #expect(Schedule.monthly(days: [1, 15], time: "09:00").displayText == "毎月1日・15日 09:00")
+        #expect(Schedule.monthly(days: [-1], time: "23:00").displayText == "毎月月末 23:00")
         #expect(Schedule.cron("0 3 * * *").displayText == "0 3 * * *")
     }
 }

@@ -8,24 +8,24 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 function printUsage() {
-  console.log(`Usage: lr [command] [options]
+  console.log(`使い方: lr [コマンド] [オプション]
 
-Commands:
-  (none)            Open Web UI in browser
-  list              List all tasks
-  status            Show summary status
-  run <task-id>     Run a task immediately
-  stop <task-id>    Stop a running task
-  toggle <task-id>  Enable/disable a task
-  logs [task-id]    Show execution history
-  serve [port]      Start Web UI without opening browser
-  install           Install daemon as LaunchAgent
-  uninstall         Remove daemon LaunchAgent
-  doctor            Diagnose setup issues
+コマンド:
+  (なし)            Web UI をブラウザで開く
+  list              タスク一覧を表示
+  status            サマリーを表示
+  run <タスクID>    タスクを即座に実行
+  stop <タスクID>   実行中のタスクを停止
+  toggle <タスクID> タスクの有効/無効を切り替え
+  logs [タスクID]   実行履歴を表示
+  serve [ポート]    Web UI をブラウザを開かずに起動
+  install           デーモンを LaunchAgent として登録
+  uninstall         デーモンの LaunchAgent を解除
+  doctor            セットアップの診断
 
-Options:
-  -n, --limit <n>   Limit log entries (default: 20)
-  -h, --help        Show this help`);
+オプション:
+  -n, --limit <n>   ログ件数の上限 (デフォルト: 20)
+  -h, --help        このヘルプを表示`);
 }
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
     case "run": {
       const taskId = args[1];
       if (!taskId) {
-        console.error("Usage: lr run <task-id>");
+        console.error("使い方: lr run <タスクID>");
         process.exit(1);
       }
       await runTask(taskId);
@@ -63,7 +63,7 @@ async function main() {
     case "stop": {
       const taskId = args[1];
       if (!taskId) {
-        console.error("Usage: lr stop <task-id>");
+        console.error("使い方: lr stop <タスクID>");
         process.exit(1);
       }
       await stopTask(taskId);
@@ -73,7 +73,7 @@ async function main() {
     case "toggle": {
       const taskId = args[1];
       if (!taskId) {
-        console.error("Usage: lr toggle <task-id>");
+        console.error("使い方: lr toggle <タスクID>");
         process.exit(1);
       }
       await toggleTask(taskId);
@@ -108,7 +108,7 @@ async function main() {
       break;
 
     default:
-      console.error(`Unknown command: ${command}`);
+      console.error(`不明なコマンド: ${command}`);
       printUsage();
       process.exit(1);
   }

@@ -41,9 +41,9 @@ final class SlackNotifier: @unchecked Sendable {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error {
-                print("[Slack] Send failed: \(error.localizedDescription)")
+                print("[Slack] 送信失敗: \(error.localizedDescription)")
             } else if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                print("[Slack] Unexpected status: \(http.statusCode)")
+                print("[Slack] 予期しないステータス: \(http.statusCode)")
             }
         }.resume()
     }

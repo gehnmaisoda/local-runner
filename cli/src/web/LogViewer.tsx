@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import type { ExecutionRecord } from "./types.ts";
 import { formatDate, formatDuration } from "./format.ts";
 
@@ -9,10 +9,10 @@ interface ModalProps {
 
 function statusLabel(status: ExecutionRecord["status"]): string {
   switch (status) {
-    case "success": return "Success";
-    case "failure": return "Failed";
-    case "stopped": return "Stopped";
-    case "running": return "Running";
+    case "success": return "成功";
+    case "failure": return "失敗";
+    case "stopped": return "停止";
+    case "running": return "実行中";
   }
 }
 
@@ -25,13 +25,24 @@ function mergeOutput(record: ExecutionRecord): string {
 
 export function LogModal({ record, onClose }: ModalProps) {
   const output = mergeOutput(record);
+  const [showFullCommand, setShowFullCommand] = useState(false);
+
+  const COMMAND_PREVIEW_LEN = 30;
+  const commandLong = record.command.length > COMMAND_PREVIEW_LEN;
+  const commandPreview = commandLong && !showFullCommand
+    ? record.command.slice(0, COMMAND_PREVIEW_LEN) + "..."
+    : record.command;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
   }, [onClose]);
 
   return (
@@ -47,6 +58,28 @@ export function LogModal({ record, onClose }: ModalProps) {
               <span className="log-meta-item">{formatDate(record.startedAt)}</span>
               <span className="log-meta-item">{formatDuration(record)}</span>
             </div>
+            <div className="log-context">
+              {record.command && (
+                <div className="log-context-row">
+                  <span className="log-context-label">コマンド</span>
+                  <code className="log-context-value">{commandPreview}</code>
+                  {commandLong && (
+                    <button
+                      className="log-context-toggle"
+                      onClick={() => setShowFullCommand(!showFullCommand)}
+                    >
+                      {showFullCommand ? "省略" : "全文表示"}
+                    </button>
+                  )}
+                </div>
+              )}
+              {record.working_directory && (
+                <div className="log-context-row">
+                  <span className="log-context-label">ディレクトリ</span>
+                  <code className="log-context-value">{record.working_directory}</code>
+                </div>
+              )}
+            </div>
           </div>
           <button className="modal-close" onClick={onClose}>&times;</button>
         </div>
@@ -54,7 +87,7 @@ export function LogModal({ record, onClose }: ModalProps) {
           {output ? (
             <pre className="log-pre">{output}</pre>
           ) : (
-            <div className="log-empty">No output</div>
+            <div className="log-empty">出力なし</div>
           )}
         </div>
       </div>
@@ -74,9 +107,9 @@ export function CompactLogRow({ record, onClick }: CompactLogProps) {
       <span className="compact-log-time">{formatDate(record.startedAt)}</span>
       <span className="compact-log-duration">{formatDuration(record)}</span>
       {record.status === "stopped" ? (
-        <span className="compact-log-stopped">Stopped</span>
+        <span className="compact-log-stopped">停止</span>
       ) : record.exitCode != null && record.exitCode !== 0 ? (
-        <span className="compact-log-exit">exit {record.exitCode}</span>
+        <span className="compact-log-exit">終了コード {record.exitCode}</span>
       ) : null}
     </div>
   );

@@ -84,14 +84,14 @@ final class LogStore: @unchecked Sendable {
         guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
 
         let decoder = JSONDecoder()
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let str = try container.decode(String.self)
-            if let date = isoFormatter.date(from: str) { return date }
-            let fallback = ISO8601DateFormatter()
-            if let date = fallback.date(from: str) { return date }
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fmt.date(from: str) { return date }
+            fmt.formatOptions = [.withInternetDateTime]
+            if let date = fmt.date(from: str) { return date }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(str)")
         }
 
@@ -104,12 +104,12 @@ final class LogStore: @unchecked Sendable {
     }
 
     private func saveTaskLog(taskId: String, records: [ExecutionRecord]) {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
-            try container.encode(isoFormatter.string(from: date))
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            try container.encode(fmt.string(from: date))
         }
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 

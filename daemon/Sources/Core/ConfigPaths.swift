@@ -48,4 +48,14 @@ public enum ConfigPaths: Sendable {
     public static var socketPath: String {
         dataDirectory.appendingPathComponent("daemon.sock").path
     }
+
+    /// スリープ開始時刻の永続化ファイル。
+    public static var sleepStateFile: URL {
+        dataDirectory.appendingPathComponent("sleep_started_at")
+    }
+
+    /// Heartbeat ファイル。デーモンが生存中であることを示す。
+    public static var heartbeatFile: URL {
+        dataDirectory.appendingPathComponent("heartbeat")
+    }
 }

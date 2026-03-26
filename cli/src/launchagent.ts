@@ -56,7 +56,7 @@ export async function install() {
   const daemonPath = findDaemonBinary();
   if (!daemonPath) {
     console.error(
-      "Daemon binary not found. Build it first:\n  cd daemon && swift build -c release"
+      "デーモンバイナリが見つかりません。先にビルドしてください:\n  cd daemon && swift build -c release"
     );
     process.exit(1);
   }
@@ -77,9 +77,9 @@ export async function install() {
   // Load
   await Bun.$`launchctl load ${PLIST_PATH}`;
 
-  console.log(`Daemon installed and started.`);
-  console.log(`  Binary: ${daemonPath}`);
-  console.log(`  Plist:  ${PLIST_PATH}`);
+  console.log(`デーモンをインストールし、起動しました。`);
+  console.log(`  バイナリ: ${daemonPath}`);
+  console.log(`  Plist:    ${PLIST_PATH}`);
 }
 
 export async function uninstall() {
@@ -92,47 +92,47 @@ export async function uninstall() {
     await Bun.$`rm ${PLIST_PATH}`;
   }
 
-  console.log("Daemon uninstalled.");
+  console.log("デーモンをアンインストールしました。");
 }
 
 export async function doctor() {
-  console.log("=== LocalRunner Doctor ===\n");
+  console.log("=== LocalRunner 診断 ===\n");
 
-  // 1. Daemon binary
+  // 1. デーモンバイナリ
   const daemonPath = findDaemonBinary();
   if (daemonPath) {
-    console.log(`[ok] Daemon binary: ${daemonPath}`);
+    console.log(`[ok] デーモンバイナリ: ${daemonPath}`);
   } else {
-    console.log("[!!] Daemon binary not found. Run: cd daemon && swift build -c release");
+    console.log("[!!] デーモンバイナリが見つかりません。実行: cd daemon && swift build -c release");
   }
 
-  // 2. Plist installed
+  // 2. Plist 登録
   const plistExists = await Bun.file(PLIST_PATH).exists();
   if (plistExists) {
     console.log(`[ok] LaunchAgent plist: ${PLIST_PATH}`);
   } else {
-    console.log(`[!!] LaunchAgent plist not installed. Run: lr install`);
+    console.log(`[!!] LaunchAgent plist 未登録。実行: lr install`);
   }
 
-  // 3. Daemon process running
+  // 3. デーモンプロセス
   const ps = await Bun.$`launchctl list | grep ${LABEL}`.quiet().nothrow();
   const running = ps.exitCode === 0;
   if (running) {
-    console.log(`[ok] Daemon process: running`);
+    console.log(`[ok] デーモンプロセス: 実行中`);
   } else {
-    console.log(`[!!] Daemon process: not running`);
+    console.log(`[!!] デーモンプロセス: 停止中`);
   }
 
-  // 4. Socket exists
+  // 4. ソケット
   const socketPath = getSocketPath();
   const socketExists = await Bun.file(socketPath).exists();
   if (socketExists) {
-    console.log(`[ok] Socket: ${socketPath}`);
+    console.log(`[ok] ソケット: ${socketPath}`);
   } else {
-    console.log(`[!!] Socket not found: ${socketPath}`);
+    console.log(`[!!] ソケットが見つかりません: ${socketPath}`);
   }
 
-  // 5. IPC connection
+  // 5. IPC 接続
   if (socketExists) {
     try {
       const { IPCClient } = await import("./ipc.ts");
@@ -141,12 +141,12 @@ export async function doctor() {
       const res = await client.send({ action: "list_tasks" });
       client.close();
       if (res.success) {
-        console.log(`[ok] IPC connection: working (${res.tasks?.length ?? 0} tasks)`);
+        console.log(`[ok] IPC 接続: 正常 (${res.tasks?.length ?? 0} 件のタスク)`);
       } else {
-        console.log(`[!!] IPC connection: error - ${res.error}`);
+        console.log(`[!!] IPC 接続: エラー - ${res.error}`);
       }
     } catch (e) {
-      console.log(`[!!] IPC connection: failed - ${e}`);
+      console.log(`[!!] IPC 接続: 失敗 - ${e}`);
     }
   }
 }

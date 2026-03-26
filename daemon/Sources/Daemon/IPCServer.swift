@@ -30,7 +30,7 @@ final class IPCServer: @unchecked Sendable {
         // ソケット作成
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else {
-            print("[IPC] Failed to create socket: \(String(cString: strerror(errno)))")
+            print("[IPC] ソケット作成に失敗: \(String(cString: strerror(errno)))")
             return
         }
 
@@ -51,13 +51,13 @@ final class IPCServer: @unchecked Sendable {
             }
         }
         guard bindResult == 0 else {
-            print("[IPC] Failed to bind: \(String(cString: strerror(errno)))")
+            print("[IPC] バインドに失敗: \(String(cString: strerror(errno)))")
             return
         }
 
         // リッスン
         guard Darwin.listen(serverFD, 5) == 0 else {
-            print("[IPC] Failed to listen: \(String(cString: strerror(errno)))")
+            print("[IPC] リッスンに失敗: \(String(cString: strerror(errno)))")
             return
         }
 
@@ -68,7 +68,7 @@ final class IPCServer: @unchecked Sendable {
 
         // 接続受付を開始
         acceptConnections()
-        print("[IPC] Listening on \(socketPath)")
+        print("[IPC] 待ち受け開始: \(socketPath)")
     }
 
     // MARK: - 接続管理
@@ -82,7 +82,7 @@ final class IPCServer: @unchecked Sendable {
                 self.lock.unlock()
 
                 guard currentServerFD >= 0 else {
-                    print("[IPC] Server socket closed, stopping accept loop")
+                    print("[IPC] サーバーソケットが閉じられました。接続受付を終了します")
                     return
                 }
 
@@ -153,14 +153,14 @@ final class IPCServer: @unchecked Sendable {
 
         case "run_task":
             guard let taskId = request.taskId else {
-                return .error("task_id required")
+                return .error("task_id が必要です")
             }
             scheduler.runTaskNow(taskId)
             return .ok
 
         case "stop_task":
             guard let taskId = request.taskId else {
-                return .error("task_id required")
+                return .error("task_id が必要です")
             }
             scheduler.stopTask(taskId)
             return .ok
@@ -185,7 +185,7 @@ final class IPCServer: @unchecked Sendable {
 
         case "update_settings":
             guard let settings = request.settings else {
-                return .error("settings required")
+                return .error("settings が必要です")
             }
             do {
                 try scheduler.saveSettings(settings)
@@ -196,7 +196,7 @@ final class IPCServer: @unchecked Sendable {
 
         case "save_task":
             guard let task = request.task else {
-                return .error("task required")
+                return .error("task が必要です")
             }
             do {
                 try scheduler.saveTask(task)
@@ -207,7 +207,7 @@ final class IPCServer: @unchecked Sendable {
 
         case "delete_task":
             guard let taskId = request.taskId else {
-                return .error("task_id required")
+                return .error("task_id が必要です")
             }
             do {
                 try scheduler.deleteTask(taskId)
@@ -218,7 +218,7 @@ final class IPCServer: @unchecked Sendable {
 
         case "toggle_task":
             guard let taskId = request.taskId else {
-                return .error("task_id required")
+                return .error("task_id が必要です")
             }
             scheduler.toggleTask(taskId)
             return .ok
@@ -230,7 +230,7 @@ final class IPCServer: @unchecked Sendable {
             return .ok
 
         default:
-            return .error("Unknown action: \(request.action)")
+            return .error("不明なアクション: \(request.action)")
         }
     }
 

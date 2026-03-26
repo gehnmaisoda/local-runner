@@ -61,10 +61,13 @@ public struct Schedule: Codable, Sendable, Equatable {
 
     // MARK: - 表示
 
-    /// 有効な曜日リストを返す。weekdays が優先、なければ weekday を使用。
+    /// 有効な曜日リストを返す（1-7 の範囲のみ）。weekdays が優先、なければ weekday を使用。
     private var effectiveWeekdays: [Int] {
-        if let wds = weekdays, !wds.isEmpty { return wds.sorted() }
-        return [weekday ?? 1]
+        if let wds = weekdays, !wds.isEmpty {
+            return wds.filter { (1...7).contains($0) }.sorted()
+        }
+        let wd = weekday ?? 1
+        return [(1...7).contains(wd) ? wd : 1]
     }
 
     public var displayText: String {
@@ -76,7 +79,7 @@ public struct Schedule: Codable, Sendable, Equatable {
             let dayNames = effectiveWeekdays.map { weekdayName($0) }
             return "毎週\(dayNames.joined()) \(time ?? "00:00")"
         case .monthly:
-            let days = monthDays ?? [1]
+            let days = (monthDays ?? [1]).filter { $0 == -1 || (1...31).contains($0) }
             let dayStrs = days.sorted().map { $0 == -1 ? "月末" : "\($0)日" }
             return "毎月\(dayStrs.joined(separator: "・")) \(time ?? "00:00")"
         case .cron: return expression ?? ""
@@ -137,7 +140,7 @@ public struct Schedule: Codable, Sendable, Equatable {
 
         case .monthly:
             let (hour, min) = parseTime(time ?? "00:00")
-            let days = monthDays ?? [1]
+            let days = (monthDays ?? [1]).filter { $0 == -1 || (1...31).contains($0) }
 
             var candidates: [Date] = []
 
@@ -197,7 +200,7 @@ public struct Schedule: Codable, Sendable, Equatable {
         case 5: return "金"
         case 6: return "土"
         case 7: return "日"
-        default: return "月"
+        default: return "?"
         }
     }
 }

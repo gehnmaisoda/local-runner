@@ -46,24 +46,34 @@ export function useTimeline(limit = 50) {
 export function useWebSocket(onMessage: () => void) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     function connect() {
+      if (!mountedRef.current) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${proto}//${location.host}/ws`);
 
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => { if (mountedRef.current) setConnected(true); };
       ws.onclose = () => {
+        if (!mountedRef.current) return;
         setConnected(false);
-        setTimeout(connect, 3000);
+        retryRef.current = setTimeout(connect, 3000);
       };
-      ws.onmessage = () => onMessage();
+      ws.onmessage = () => { if (mountedRef.current) onMessage(); };
 
       wsRef.current = ws;
     }
 
     connect();
-    return () => { wsRef.current?.close(); };
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(retryRef.current);
+      wsRef.current?.close();
+    };
   }, [onMessage]);
 
   return connected;

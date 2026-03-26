@@ -223,6 +223,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   const [command, setCommand] = useState(task?.command ?? "");
   const [workingDirectory, setWorkingDirectory] = useState(task?.working_directory ?? "");
   const [dirError, setDirError] = useState<string | null>(null);
+  const dirValidating = useRef(false);
   const [catchUp, setCatchUp] = useState(task?.catch_up ?? true);
   const [notifyOnFailure, setNotifyOnFailure] = useState(task?.notify_on_failure ?? false);
 
@@ -290,7 +291,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   useEffect(() => {
     if (isNew || !task?.id) return;
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    if (!name.trim() || !command) { setSaveStatus("idle"); return; }
+    if (!name.trim() || !command || dirValidating.current) { setSaveStatus("idle"); return; }
 
     setSaveStatus("idle");
     const taskObj: TaskDefinition = {
@@ -389,12 +390,15 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
               onBlur={async () => {
                 const trimmed = workingDirectory.trim();
                 if (!trimmed) { setDirError(null); return; }
+                dirValidating.current = true;
                 try {
                   const res = await fetch(`/api/check-dir?path=${encodeURIComponent(trimmed)}`);
                   const data = await res.json();
                   setDirError(data.exists ? null : "ディレクトリが存在しません");
                 } catch {
                   setDirError(null);
+                } finally {
+                  dirValidating.current = false;
                 }
               }}
               placeholder="~/projects/myapp"

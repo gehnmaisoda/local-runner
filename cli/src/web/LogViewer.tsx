@@ -1,19 +1,10 @@
 import React, { useEffect, useState } from "react";
 import type { ExecutionRecord } from "./types.ts";
-import { formatDate, formatDuration } from "./format.ts";
+import { formatDate, formatDuration, statusLabel } from "./format.ts";
 
 interface ModalProps {
   record: ExecutionRecord;
   onClose: () => void;
-}
-
-function statusLabel(status: ExecutionRecord["status"]): string {
-  switch (status) {
-    case "success": return "成功";
-    case "failure": return "失敗";
-    case "stopped": return "停止";
-    case "running": return "実行中";
-  }
 }
 
 function mergeOutput(record: ExecutionRecord): string {
@@ -23,11 +14,12 @@ function mergeOutput(record: ExecutionRecord): string {
   return parts.join("\n");
 }
 
+const COMMAND_PREVIEW_LEN = 30;
+
 export function LogModal({ record, onClose }: ModalProps) {
   const output = mergeOutput(record);
   const [showFullCommand, setShowFullCommand] = useState(false);
 
-  const COMMAND_PREVIEW_LEN = 30;
   const commandLong = record.command.length > COMMAND_PREVIEW_LEN;
   const commandPreview = commandLong && !showFullCommand
     ? record.command.slice(0, COMMAND_PREVIEW_LEN) + "..."
@@ -92,26 +84,6 @@ export function LogModal({ record, onClose }: ModalProps) {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-interface CompactLogProps {
-  record: ExecutionRecord;
-  onClick?: () => void;
-}
-
-export function CompactLogRow({ record, onClick }: CompactLogProps) {
-  return (
-    <div className="compact-log-row" onClick={onClick}>
-      <span className={`status-dot ${record.status}`} />
-      <span className="compact-log-time">{formatDate(record.startedAt)}</span>
-      <span className="compact-log-duration">{formatDuration(record)}</span>
-      {record.status === "stopped" ? (
-        <span className="compact-log-stopped">停止</span>
-      ) : record.exitCode != null && record.exitCode !== 0 ? (
-        <span className="compact-log-exit">終了コード {record.exitCode}</span>
-      ) : null}
     </div>
   );
 }

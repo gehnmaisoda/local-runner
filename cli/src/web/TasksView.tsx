@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { TaskStatus, TaskDefinition, ExecutionRecord, Schedule } from "./types.ts";
-import { formatDate, formatDuration, formatSchedule } from "./format.ts";
+import { formatDate, formatDuration, formatSchedule, statusLabel } from "./format.ts";
 import { LogModal } from "./LogViewer.tsx";
 
 // --- Props ---
@@ -55,15 +55,6 @@ function TrashIcon() {
 }
 
 // --- Log Row ---
-
-function statusLabel(status: ExecutionRecord["status"]): string {
-  switch (status) {
-    case "success": return "成功";
-    case "failure": return "失敗";
-    case "stopped": return "停止";
-    case "running": return "実行中";
-  }
-}
 
 function LogRow({ record, onClick }: { record: ExecutionRecord; onClick: () => void }) {
   return (
@@ -157,13 +148,15 @@ function buildSchedule(
   type: string, hour: number, minute: number,
   weekdays: number[], monthDays: number[], cronExpr: string,
 ): Schedule {
-  const schedule: Schedule = { type };
-  if (type === "hourly") schedule.minute = minute;
-  else if (type === "daily") schedule.time = formatTimeValue(hour, minute);
-  else if (type === "weekly") { schedule.time = formatTimeValue(hour, minute); schedule.weekdays = weekdays; }
-  else if (type === "monthly") { schedule.time = formatTimeValue(hour, minute); schedule.month_days = monthDays; }
-  else if (type === "cron") schedule.expression = cronExpr;
-  return schedule;
+  const time = formatTimeValue(hour, minute);
+  switch (type) {
+    case "hourly":  return { type, minute };
+    case "daily":   return { type, time };
+    case "weekly":  return { type, time, weekdays };
+    case "monthly": return { type, time, month_days: monthDays };
+    case "cron":    return { type, expression: cronExpr };
+    default:        return { type };
+  }
 }
 
 // --- Numeric Input (free-edit, validate on blur) ---
@@ -216,6 +209,8 @@ interface DetailProps {
   onDelete: () => void;
 }
 
+const LOG_PAGE_SIZE = 15;
+
 function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDelete }: DetailProps) {
   const [autoId] = useState(() => generateId());
 
@@ -229,7 +224,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
 
   const [scheduleType, setScheduleType] = useState(task?.schedule.type ?? "daily");
   const initialTime = parseTime(task?.schedule.time);
-  const [hour, setHour] = useState(initialTime.hour || 9);
+  const [hour, setHour] = useState(task?.schedule.time ? initialTime.hour : 9);
   const [minute, setMinute] = useState(
     task?.schedule.type === "hourly" ? (task?.schedule.minute ?? 0) : initialTime.minute,
   );
@@ -261,7 +256,6 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // History
-  const LOG_PAGE_SIZE = 15;
   const [history, setHistory] = useState<ExecutionRecord[]>([]);
   const [historyLimit, setHistoryLimit] = useState(LOG_PAGE_SIZE);
   const [hasMore, setHasMore] = useState(false);
@@ -304,7 +298,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
       command,
       working_directory: workingDirectory.trim() || undefined,
       schedule: buildSchedule(scheduleType, hour, minute, weekdays, monthDays, cronExpr),
-      enabled: true,
+      enabled: task.enabled,
       catch_up: catchUp,
       notify_on_failure: notifyOnFailure,
     };

@@ -29,6 +29,15 @@ const ISO_WEEKDAYS: Record<number, string> = {
   1: "月", 2: "火", 3: "水", 4: "木", 5: "金", 6: "土", 7: "日",
 };
 
+export function statusLabel(status: ExecutionRecord["status"]): string {
+  switch (status) {
+    case "success": return "成功";
+    case "failure": return "失敗";
+    case "stopped": return "停止";
+    case "running": return "実行中";
+  }
+}
+
 export function formatSchedule(schedule: Schedule): string {
   switch (schedule.type) {
     case "every_minute": return "毎分";

@@ -233,10 +233,14 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   const [minute, setMinute] = useState(
     task?.schedule.type === "hourly" ? (task?.schedule.minute ?? 0) : initialTime.minute,
   );
-  const [weekdays, setWeekdays] = useState<number[]>(
-    task?.schedule.weekdays?.length ? task.schedule.weekdays : [task?.schedule.weekday ?? 1],
-  );
-  const [monthDays, setMonthDays] = useState<number[]>(task?.schedule.month_days ?? [1]);
+  const [weekdays, setWeekdays] = useState<number[]>(() => {
+    if (task?.schedule.weekdays && task.schedule.weekdays.length > 0) return task.schedule.weekdays;
+    return [task?.schedule.weekday ?? 1];
+  });
+  const [monthDays, setMonthDays] = useState<number[]>(() => {
+    if (task?.schedule.month_days && task.schedule.month_days.length > 0) return task.schedule.month_days;
+    return [1];
+  });
   const [cronExpr, setCronExpr] = useState(task?.schedule.expression ?? "");
 
   const toggleWeekday = (day: number) => {

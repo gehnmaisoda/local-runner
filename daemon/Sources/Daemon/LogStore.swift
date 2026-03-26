@@ -78,10 +78,12 @@ final class LogStore: @unchecked Sendable {
 
     private func ensureLoaded() {
         guard !loaded else { return }
-        loaded = true
 
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
+        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            loaded = true
+            return
+        }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -101,6 +103,8 @@ final class LogStore: @unchecked Sendable {
                   let records = try? decoder.decode([ExecutionRecord].self, from: data) else { continue }
             cache[taskId] = records
         }
+
+        loaded = true
     }
 
     private func saveTaskLog(taskId: String, records: [ExecutionRecord]) {

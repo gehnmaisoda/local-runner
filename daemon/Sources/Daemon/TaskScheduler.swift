@@ -96,6 +96,7 @@ final class TaskScheduler: @unchecked Sendable {
                 catchUp: tasks[idx].catchUp,
                 notifyOnFailure: tasks[idx].notifyOnFailure
             )
+            recalculateFireDatesLocked()
             return tasks[idx]
         }
         guard let task else { return }
@@ -104,7 +105,6 @@ final class TaskScheduler: @unchecked Sendable {
         } catch {
             print("[Scheduler] タスク \(taskId) の切り替え保存に失敗: \(error)")
         }
-        lock.withLock { recalculateFireDatesLocked() }
         onNotification?(.tasksChanged)
     }
 

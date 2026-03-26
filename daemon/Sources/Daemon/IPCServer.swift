@@ -127,9 +127,10 @@ final class IPCServer: @unchecked Sendable {
                     }
                     let response = self.handleRequest(request, clientFD: fd)
                     if let data = try? IPCWireFormat.encode(response) {
-                        _ = data.withUnsafeBytes { ptr in
+                        let written = data.withUnsafeBytes { ptr in
                             write(fd, ptr.baseAddress!, data.count)
                         }
+                        if written <= 0 { break }
                     }
                 }
             }
@@ -243,10 +244,18 @@ final class IPCServer: @unchecked Sendable {
         let subscribers = subscriberFDs
         lock.unlock()
 
+        var deadFDs: [Int32] = []
         for fd in subscribers {
-            _ = data.withUnsafeBytes { ptr in
+            let written = data.withUnsafeBytes { ptr in
                 write(fd, ptr.baseAddress!, data.count)
             }
+            if written <= 0 { deadFDs.append(fd) }
+        }
+
+        if !deadFDs.isEmpty {
+            lock.lock()
+            subscriberFDs.removeAll { deadFDs.contains($0) }
+            lock.unlock()
         }
     }
 }

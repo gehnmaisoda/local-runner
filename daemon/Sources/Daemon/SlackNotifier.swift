@@ -6,13 +6,20 @@ final class SlackNotifier: @unchecked Sendable {
     var webhookURL: String?
 
     /// タスク失敗を Slack に通知する。
+    /// Slack mrkdwn の特殊文字をエスケープする。
+    private func escapeSlack(_ str: String) -> String {
+        str.replacingOccurrences(of: "&", with: "&amp;")
+           .replacingOccurrences(of: "<", with: "&lt;")
+           .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
     func notifyFailure(task: TaskDefinition, record: ExecutionRecord) {
         guard let urlString = webhookURL, let url = URL(string: urlString) else { return }
 
         let stderrPreview = String(record.stderr.prefix(500))
         let text = [
-            ":x: *タスク実行失敗: \(task.name)*",
-            "• コマンド: `\(task.command)`",
+            ":x: *タスク実行失敗: \(escapeSlack(task.name))*",
+            "• コマンド: `\(escapeSlack(task.command))`",
             "• 終了コード: \(record.exitCode ?? -1)",
             "• 時刻: \(formatDate(record.startedAt))",
             "• 実行時間: \(record.durationText)",
@@ -27,7 +34,7 @@ final class SlackNotifier: @unchecked Sendable {
                 ],
                 [
                     "type": "section",
-                    "text": ["type": "mrkdwn", "text": "```\n\(stderrPreview)\n```"]
+                    "text": ["type": "mrkdwn", "text": "```\n\(escapeSlack(stderrPreview))\n```"]
                 ]
             ]
         ]

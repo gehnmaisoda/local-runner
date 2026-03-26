@@ -34,14 +34,10 @@ final class TaskExecutor: @unchecked Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        lock.lock()
-        runningProcesses[task.id] = process
-        lock.unlock()
+        lock.withLock { runningProcesses[task.id] = process }
 
         defer {
-            lock.lock()
-            runningProcesses.removeValue(forKey: task.id)
-            lock.unlock()
+            lock.withLock { runningProcesses.removeValue(forKey: task.id) }
         }
 
         do {

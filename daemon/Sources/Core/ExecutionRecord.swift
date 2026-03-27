@@ -64,9 +64,10 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable {
         guard let d = duration else { return "—" }
         if d < 1 { return String(format: "%.0fms", d * 1000) }
         if d < 60 { return String(format: "%.1fs", d) }
+        let total = Int(d)
         if d < 3600 {
-            return String(format: "%.0fm%.0fs", d / 60, d.truncatingRemainder(dividingBy: 60))
+            return "\(total / 60)m\(total % 60)s"
         }
-        return String(format: "%.0fh%.0fm", d / 3600, (d / 60).truncatingRemainder(dividingBy: 60))
+        return "\(total / 3600)h\((total % 3600) / 60)m"
     }
 }

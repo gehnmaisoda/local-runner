@@ -88,7 +88,13 @@ public struct CronExpression: Sendable {
         hour = try CronField.parse(String(parts[1]), range: 0...23)
         dayOfMonth = try CronField.parse(String(parts[2]), range: 1...31)
         month = try CronField.parse(String(parts[3]), range: 1...12)
-        dayOfWeek = try CronField.parse(String(parts[4]), range: 0...7) // 0,7 = 日曜
+        // 0 と 7 はどちらも日曜。7 が指定されたら 0 も含める正規化を行う
+        var dow = try CronField.parse(String(parts[4]), range: 0...7)
+        if case .values(var set) = dow, set.contains(7) {
+            set.insert(0)
+            dow = .values(set)
+        }
+        dayOfWeek = dow
     }
 
     /// cron 式が有効かどうかを検証する。

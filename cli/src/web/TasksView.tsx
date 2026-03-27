@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { TaskStatus, TaskDefinition, ExecutionRecord, Schedule } from "./types.ts";
-import { formatDate, formatDuration, formatSchedule, statusLabel } from "./format.ts";
+import { formatDate, formatDuration, formatSchedule, statusIcon } from "./format.ts";
 import { LogModal } from "./LogViewer.tsx";
+import { useCountdown } from "./hooks.ts";
 
 // --- Props ---
 
@@ -24,11 +25,6 @@ function StatusDot({ task }: { task: TaskStatus }) {
   return <span className="status-dot idle" />;
 }
 
-const STATUS_ICON: Record<string, string> = {
-  success: "\u2713",
-  failure: "\u2717",
-  stopped: "\u25A0",
-};
 
 function PlayIcon() {
   return (
@@ -56,19 +52,22 @@ function TrashIcon() {
 
 // --- Log Row ---
 
+export function StatusResult({ status, duration }: { status: string; duration: string }) {
+  return (
+    <span className={`status-result ${status}`}>
+      <span className="status-result-icon">{statusIcon(status as ExecutionRecord["status"])}</span>
+      {duration}
+    </span>
+  );
+}
+
 function LogRow({ record, onClick }: { record: ExecutionRecord; onClick: () => void }) {
   return (
     <div className="log-row" onClick={onClick}>
       <div className="log-row-header">
         <span className={`status-dot ${record.status}`} />
         <span className="log-row-time">{formatDate(record.startedAt)}</span>
-        <span className="log-row-duration">{formatDuration(record)}</span>
-        {record.status === "stopped" ? (
-          <span className="log-row-exit">停止</span>
-        ) : record.exitCode != null && record.exitCode !== 0 ? (
-          <span className="log-row-exit">exit {record.exitCode}</span>
-        ) : null}
-        <span className={`log-row-badge ${record.status}`}>{statusLabel(record.status)}</span>
+        <StatusResult status={record.status} duration={formatDuration(record)} />
       </div>
     </div>
   );
@@ -92,9 +91,7 @@ function TaskListItem({ task, selected, onSelect }: {
         <span className="task-list-item-meta">{formatSchedule(task.task.schedule)}</span>
       </div>
       {task.lastRun && (
-        <span className={`task-list-item-last ${task.lastRun.status}`}>
-          {STATUS_ICON[task.lastRun.status]} {formatDuration(task.lastRun)}
-        </span>
+        <StatusResult status={task.lastRun.status} duration={formatDuration(task.lastRun)} />
       )}
     </div>
   );
@@ -212,6 +209,7 @@ interface DetailProps {
 const LOG_PAGE_SIZE = 15;
 
 function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDelete }: DetailProps) {
+  const countdown = useCountdown(taskStatus?.nextRunAt);
   const [autoId] = useState(() => generateId());
 
   const [name, setName] = useState(task?.name ?? "");
@@ -554,7 +552,10 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
             {taskStatus?.nextRunAt && (
               <div className="detail-section">
                 <label className="detail-label">次回実行</label>
-                <span className="next-run-badge">{formatDate(taskStatus.nextRunAt)}</span>
+                <span className="next-run-badge">
+                  {formatDate(taskStatus.nextRunAt)}
+                  {countdown && <span className="next-run-countdown">（{countdown}）</span>}
+                </span>
               </div>
             )}
             <label className="detail-label">実行ログ</label>

@@ -155,7 +155,7 @@ final class TaskScheduler: @unchecked Sendable {
     // MARK: - Private
 
     private func startScheduleTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.checkSchedule()
         }
     }
@@ -171,8 +171,7 @@ final class TaskScheduler: @unchecked Sendable {
         let (tasksSnapshot, fireDates) = lock.withLock { (tasks, nextFireDates) }
         let now = Date()
 
-        for task in tasksSnapshot where task.enabled {
-            guard let nextFire = fireDates[task.id], nextFire <= now else { continue }
+        for task in ScheduleLogic.dueTasks(from: tasksSnapshot, nextFireDates: fireDates, at: now) {
             executeTask(task)
         }
 
@@ -190,11 +189,7 @@ final class TaskScheduler: @unchecked Sendable {
 
     /// ロック保持中に呼ぶこと。
     private func recalculateFireDatesLocked() {
-        let now = Date()
-        nextFireDates.removeAll()
-        for task in tasks where task.enabled {
-            nextFireDates[task.id] = task.schedule.nextFireDate(after: now)
-        }
+        nextFireDates = ScheduleLogic.calculateNextFireDates(for: tasks, after: Date())
     }
 
     private func executeTask(_ task: TaskDefinition) {

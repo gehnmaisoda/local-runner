@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { ExecutionRecord } from "./types.ts";
 import { formatDate, formatDuration } from "./format.ts";
 import { LogModal } from "./LogViewer.tsx";
+import { StatusResult } from "./TasksView.tsx";
 
 interface Props {
   history: ExecutionRecord[];
@@ -22,11 +23,10 @@ export function TimelineView({ history }: Props) {
             <div className="timeline-entry-header">
               <span className={`status-dot ${r.status}`} />
               <span className="timeline-task-name">{r.taskName}</span>
-              <span className="timeline-time">{formatDate(r.startedAt)}</span>
-              <span className="timeline-duration">{formatDuration(r)}</span>
-              {r.exitCode != null && r.exitCode !== 0 && (
-                <span className="timeline-exit">終了コード {r.exitCode}</span>
-              )}
+              <span className="timeline-right">
+                <span className="timeline-time">{formatDate(r.startedAt)}</span>
+                <StatusResult status={r.status} duration={formatDuration(r)} />
+              </span>
             </div>
           </div>
         ))}

@@ -173,7 +173,7 @@ export class IPCClient {
     }
   }
 
-  async send(request: IPCRequest): Promise<IPCResponse> {
+  async send(request: IPCRequest, timeout = 5000): Promise<IPCResponse> {
     if (!this.socket) {
       throw new Error("デーモンに接続されていません。デーモンは起動していますか？");
     }
@@ -181,7 +181,23 @@ export class IPCClient {
     this.socket.write(encoded);
 
     return new Promise((resolve, reject) => {
-      this.pending.push({ resolve, reject });
+      const timer = setTimeout(() => {
+        const idx = this.pending.indexOf(entry);
+        if (idx !== -1) this.pending.splice(idx, 1);
+        reject(new Error("IPC リクエストがタイムアウトしました"));
+      }, timeout);
+
+      const entry = {
+        resolve: (value: IPCResponse) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (reason: unknown) => {
+          clearTimeout(timer);
+          reject(reason);
+        },
+      };
+      this.pending.push(entry);
     });
   }
 

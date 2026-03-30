@@ -7,12 +7,12 @@ import CoreGraphics
 /// - ディスプレイ ON → 実行可
 /// - ディスプレイ OFF + Sleep防止 Assertion あり（Amphetamine等）→ 実行可
 /// - ディスプレイ OFF + Assertion なし → DarkWake、スキップ
-protocol DisplayWakeStateChecking: Sendable {
+public protocol DisplayWakeStateChecking: Sendable {
     func shouldExecuteScheduledTasks() -> Bool
 }
 
-final class DisplayWakeState: DisplayWakeStateChecking, @unchecked Sendable {
-    func shouldExecuteScheduledTasks() -> Bool {
+public final class DisplayWakeState: DisplayWakeStateChecking, @unchecked Sendable {
+    public func shouldExecuteScheduledTasks() -> Bool {
         let displayID = CGMainDisplayID()
         guard displayID != kCGNullDirectDisplay else {
             // ディスプレイ状態を取得できない場合は安全側（実行する）

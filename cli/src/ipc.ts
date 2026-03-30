@@ -14,6 +14,7 @@ export interface TaskDefinition {
   enabled: boolean;
   catch_up: boolean;
   notify_on_failure: boolean;
+  timeout?: number;
 }
 
 export interface Schedule {
@@ -33,7 +34,7 @@ export interface ExecutionRecord {
   exitCode?: number;
   stdout: string;
   stderr: string;
-  status: "running" | "success" | "failure" | "stopped";
+  status: "running" | "success" | "failure" | "stopped" | "timeout" | "pending";
 }
 
 export interface TaskStatus {

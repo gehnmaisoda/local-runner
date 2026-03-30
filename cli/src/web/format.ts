@@ -36,6 +36,8 @@ export function statusLabel(status: ExecutionRecord["status"]): string {
     case "success": return "成功";
     case "failure": return "失敗";
     case "stopped": return "停止";
+    case "timeout": return "タイムアウト";
+    case "pending": return "保留中";
     case "running": return "実行中";
   }
 }
@@ -60,6 +62,8 @@ export function statusIcon(status: ExecutionRecord["status"]): string {
     case "success": return "\u2713"; // ✓
     case "failure": return "\u2717"; // ✗
     case "stopped": return "\u25A0"; // ■
+    case "timeout": return "\u23F0"; // ⏰
+    case "pending": return "\u23F3"; // ⏳
     default: return "";
   }
 }

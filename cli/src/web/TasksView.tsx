@@ -20,6 +20,7 @@ interface Props {
 function StatusDot({ task }: { task: TaskStatus }) {
   if (task.isRunning) return <span className="status-dot running" />;
   if (task.lastRun?.status === "failure") return <span className="status-dot failure" />;
+  if (task.lastRun?.status === "timeout") return <span className="status-dot failure" />;
   if (task.lastRun?.status === "stopped") return <span className="status-dot stopped" />;
   if (task.lastRun?.status === "success") return <span className="status-dot success" />;
   return <span className="status-dot idle" />;
@@ -219,6 +220,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   const dirValidating = useRef(false);
   const [catchUp, setCatchUp] = useState(task?.catch_up ?? true);
   const [notifyOnFailure, setNotifyOnFailure] = useState(task?.notify_on_failure ?? false);
+  const [timeout, setTimeout_] = useState(task?.timeout ?? 0);
 
   const [scheduleType, setScheduleType] = useState(task?.schedule.type ?? "daily");
   const initialTime = parseTime(task?.schedule.time);
@@ -299,6 +301,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
       enabled: task.enabled,
       catch_up: catchUp,
       notify_on_failure: notifyOnFailure,
+      timeout: timeout > 0 ? timeout : undefined,
     };
 
     const timer = setTimeout(async () => {
@@ -309,7 +312,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNew, task?.id, name, command, workingDirectory, scheduleType, hour, minute, JSON.stringify(weekdays), JSON.stringify(monthDays), cronExpr, catchUp, notifyOnFailure]);
+  }, [isNew, task?.id, name, command, workingDirectory, scheduleType, hour, minute, JSON.stringify(weekdays), JSON.stringify(monthDays), cronExpr, catchUp, notifyOnFailure, timeout]);
 
   // --- Create (new tasks only) ---
   const handleCreate = async () => {
@@ -323,6 +326,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
       enabled: true,
       catch_up: catchUp,
       notify_on_failure: notifyOnFailure,
+      timeout: timeout > 0 ? timeout : undefined,
     });
     setCreating(false);
   };
@@ -535,6 +539,21 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
                 <input type="checkbox" checked={notifyOnFailure} onChange={(e) => setNotifyOnFailure(e.target.checked)} />
                 失敗時に通知 (Slack)
               </label>
+            </div>
+            <div className="timeout-row">
+              <label className="detail-label-inline">タイムアウト</label>
+              <input
+                className="form-input timeout-input"
+                type="text"
+                inputMode="numeric"
+                value={timeout || ""}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
+                  setTimeout_(n > 0 ? n : 0);
+                }}
+                placeholder="なし"
+              />
+              <span className="field-hint-inline">秒</span>
             </div>
           </div>
 

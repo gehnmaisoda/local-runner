@@ -6,7 +6,7 @@ import Darwin
 
 /// Unix Domain Socket ベースの IPC サーバー。
 /// GUI からのリクエストを受け付け、ヘルパーの機能を提供する。
-final class IPCServer: @unchecked Sendable {
+public final class IPCServer: @unchecked Sendable {
     private let scheduler: TaskScheduler
     private let logStore: LogStore
     private let socketPath: String
@@ -14,8 +14,9 @@ final class IPCServer: @unchecked Sendable {
     private var clientFDs: [Int32] = []
     private var subscriberFDs: [Int32] = []
     private let lock = NSLock()
+    public private(set) var isShutdown = false
 
-    init(scheduler: TaskScheduler, logStore: LogStore, socketPath: String = ConfigPaths.socketPath) {
+    public init(scheduler: TaskScheduler, logStore: LogStore, socketPath: String = ConfigPaths.socketPath) {
         self.scheduler = scheduler
         self.logStore = logStore
         self.socketPath = socketPath
@@ -23,7 +24,7 @@ final class IPCServer: @unchecked Sendable {
 
     // MARK: - 起動
 
-    func start() {
+    public func start() {
         // 既存ソケットファイルを削除
         unlink(socketPath)
 
@@ -71,6 +72,32 @@ final class IPCServer: @unchecked Sendable {
         Log.info("IPC", "待ち受け開始: \(socketPath)")
     }
 
+    /// Graceful shutdown: クライアント切断・ソケットファイル削除。
+    public func shutdown() {
+        lock.lock()
+        isShutdown = true
+
+        // 全クライアント接続を閉じる
+        let allFDs = clientFDs + subscriberFDs
+        let uniqueFDs = Array(Set(allFDs))
+        for fd in uniqueFDs {
+            close(fd)
+        }
+        clientFDs.removeAll()
+        subscriberFDs.removeAll()
+
+        // サーバーソケットを閉じる
+        if serverFD >= 0 {
+            close(serverFD)
+            serverFD = -1
+        }
+        lock.unlock()
+
+        // ソケットファイルを削除
+        unlink(socketPath)
+        Log.info("IPC", "シャットダウン完了: ソケットファイルを削除しました")
+    }
+
     // MARK: - 接続管理
 
     private func acceptConnections() {
@@ -78,10 +105,11 @@ final class IPCServer: @unchecked Sendable {
             guard let self else { return }
             while true {
                 self.lock.lock()
+                let shutdown = self.isShutdown
                 let currentServerFD = self.serverFD
                 self.lock.unlock()
 
-                guard currentServerFD >= 0 else {
+                guard !shutdown, currentServerFD >= 0 else {
                     Log.info("IPC", "サーバーソケットが閉じられました。接続受付を終了します")
                     return
                 }

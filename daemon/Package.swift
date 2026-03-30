@@ -16,15 +16,25 @@ let package = Package(
             dependencies: ["Yams"],
             path: "Sources/Core"
         ),
+        .target(
+            name: "DaemonLib",
+            dependencies: ["Core"],
+            path: "Sources/DaemonLib"
+        ),
         .executableTarget(
             name: "local-runner",
-            dependencies: ["Core"],
+            dependencies: ["DaemonLib"],
             path: "Sources/Daemon"
         ),
         .testTarget(
             name: "CoreTests",
             dependencies: ["Core"],
             path: "Tests/CoreTests"
+        ),
+        .testTarget(
+            name: "DaemonTests",
+            dependencies: ["DaemonLib"],
+            path: "Tests/DaemonTests"
         ),
     ]
 )

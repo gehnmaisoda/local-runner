@@ -13,9 +13,11 @@ local-runner/
 │   ├── Package.swift
 │   ├── Sources/
 │   │   ├── Core/             # 共有モデル (TaskDefinition, Schedule, CronExpression, IPCProtocol 等)
-│   │   └── Daemon/           # デーモン本体 (Scheduler, Executor, LogStore, IPCServer 等)
+│   │   ├── DaemonLib/        # デーモンライブラリ (Scheduler, Executor, LogStore, IPCServer, NetworkMonitor 等)
+│   │   └── Daemon/           # デーモンエントリーポイント (main.swift)
 │   ├── Tests/
-│   │   └── CoreTests/
+│   │   ├── CoreTests/
+│   │   └── DaemonTests/
 │   └── Resources/
 │       └── com.gehnmaisoda.local-runner.daemon.plist
 │
@@ -36,11 +38,12 @@ local-runner/
 
 ```
 Daemon (Swift, LaunchAgent 常駐)
-  ├─ TaskScheduler   — cron/スケジュール管理, 10秒間隔チェック
-  ├─ TaskExecutor    — /bin/zsh -l -c でコマンド実行
+  ├─ TaskScheduler   — cron/スケジュール管理, 1秒間隔チェック
+  ├─ TaskExecutor    — /bin/zsh -l -c でコマンド実行 (タイムアウト対応)
   ├─ LogStore        — 実行ログ永続化 (JSON)
-  ├─ SlackNotifier   — 失敗時 Slack 通知
+  ├─ SlackNotifier   — 失敗/タイムアウト時 Slack 通知
   ├─ WakeDetector    — スリープ復帰時のキャッチアップ
+  ├─ NetworkMonitor  — ネットワーク状態監視 (NWPathMonitor)
   └─ IPCServer       — Unix Domain Socket サーバー
 
 CLI + Web UI (Bun / TypeScript)

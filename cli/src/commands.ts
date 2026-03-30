@@ -30,6 +30,7 @@ function statusIcon(status: TaskStatus): string {
   if (status.isRunning) return "\u25B6"; // running
   if (!status.task.enabled) return "\u25CB"; // disabled
   if (status.lastRun?.status === "failure") return "\u2717"; // failed
+  if (status.lastRun?.status === "timeout") return "\u23F0"; // timeout
   if (status.lastRun?.status === "success") return "\u2713"; // success
   return "\u25CB"; // no history
 }
@@ -124,7 +125,7 @@ export async function showLogs(taskId?: string, limit = 20) {
     console.log("-".repeat(70));
 
     for (const r of res.history) {
-      const icon = r.status === "success" ? "\u2713" : r.status === "failure" ? "\u2717" : "\u25B6";
+      const icon = r.status === "success" ? "\u2713" : r.status === "timeout" ? "\u23F0" : r.status === "failure" ? "\u2717" : "\u25B6";
       console.log(
         `  ${pad(icon, 6)} ${pad(r.taskName, 20)} ${pad(formatDate(r.startedAt), 18)} ${pad(formatDuration(r), 10)} ${r.exitCode ?? "-"}`
       );

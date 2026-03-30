@@ -2,8 +2,8 @@ import Foundation
 import Core
 
 /// Slack Webhook を使って通知を送信する。
-final class SlackNotifier: @unchecked Sendable {
-    var webhookURL: String?
+public final class SlackNotifier: @unchecked Sendable {
+    public var webhookURL: String?
 
     /// タスク失敗を Slack に通知する。
     /// Slack mrkdwn の特殊文字をエスケープする。
@@ -13,12 +13,15 @@ final class SlackNotifier: @unchecked Sendable {
            .replacingOccurrences(of: ">", with: "&gt;")
     }
 
-    func notifyFailure(task: TaskDefinition, record: ExecutionRecord) {
+    public func notifyFailure(task: TaskDefinition, record: ExecutionRecord) {
         guard let urlString = webhookURL, let url = URL(string: urlString) else { return }
 
         let stderrPreview = String(record.stderr.prefix(500))
+        let header = record.status == .timeout
+            ? ":alarm_clock: *タスクタイムアウト: \(escapeSlack(task.name))*"
+            : ":x: *タスク実行失敗: \(escapeSlack(task.name))*"
         let text = [
-            ":x: *タスク実行失敗: \(escapeSlack(task.name))*",
+            header,
             "• コマンド: `\(escapeSlack(task.command))`",
             "• 終了コード: \(record.exitCode ?? -1)",
             "• 時刻: \(Log.formatDate(record.startedAt))",

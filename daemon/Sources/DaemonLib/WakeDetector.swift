@@ -5,7 +5,7 @@ import Core
 /// macOS のスリープ/復帰イベントを監視し、復帰時にコールバックを呼ぶ。
 /// sleepStartedAt をファイルに永続化し、デーモン再起動時にも復元可能にする。
 /// また heartbeat を定期的に記録し、起動時にギャップを検出してキャッチアップの判断材料にする。
-final class WakeDetector: @unchecked Sendable {
+public final class WakeDetector: @unchecked Sendable {
     private let onWake: @Sendable (Date) -> Void
     private var sleepStartedAt: Date?
     private var heartbeatTimer: Timer?
@@ -13,11 +13,11 @@ final class WakeDetector: @unchecked Sendable {
     /// Heartbeat の記録間隔（秒）。
     private static let heartbeatInterval: TimeInterval = 60
 
-    init(onWake: @escaping @Sendable (Date) -> Void) {
+    public init(onWake: @escaping @Sendable (Date) -> Void) {
         self.onWake = onWake
     }
 
-    func start() {
+    public func start() {
         // 永続化されたスリープ状態を復元
         sleepStartedAt = loadSleepState()
         if let restored = sleepStartedAt {
@@ -52,7 +52,7 @@ final class WakeDetector: @unchecked Sendable {
 
     /// 前回の heartbeat からのギャップを検出する。
     /// デーモンが停止していた期間にスケジュールを逃した可能性がある場合、その開始時刻を返す。
-    func detectStartupGap() -> Date? {
+    public func detectStartupGap() -> Date? {
         // 永続化されたスリープ状態があれば、それを使う（デーモン再起動ケース）
         if let sleepDate = loadSleepState() {
             clearSleepState()

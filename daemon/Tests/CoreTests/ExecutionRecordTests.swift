@@ -77,3 +77,34 @@ struct DurationTextTests {
         #expect(r.duration! == 42.5)
     }
 }
+
+// MARK: - ExecutionStatus
+
+@Suite("ExecutionStatus")
+struct ExecutionStatusTests {
+    @Test("Timeout status has correct rawValue")
+    func timeoutRawValue() {
+        #expect(ExecutionStatus.timeout.rawValue == "timeout")
+    }
+
+    @Test("All status values are distinct")
+    func allDistinct() {
+        let all: [ExecutionStatus] = [.running, .success, .failure, .stopped, .timeout, .pending]
+        let rawValues = Set(all.map(\.rawValue))
+        #expect(rawValues.count == all.count)
+    }
+
+    @Test("Timeout can be round-tripped through Codable")
+    func timeoutCodable() throws {
+        let record = ExecutionRecord(
+            taskId: "t", taskName: "test",
+            startedAt: Date(), finishedAt: Date(),
+            status: .timeout
+        )
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(record)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(ExecutionRecord.self, from: data)
+        #expect(decoded.status == .timeout)
+    }
+}

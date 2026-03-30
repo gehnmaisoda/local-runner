@@ -12,6 +12,7 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
     public var enabled: Bool
     public var catchUp: Bool
     public var notifyOnFailure: Bool
+    public var timeout: Int?
 
     public init(
         id: String,
@@ -22,7 +23,8 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         schedule: Schedule = .daily(),
         enabled: Bool = true,
         catchUp: Bool = true,
-        notifyOnFailure: Bool = false
+        notifyOnFailure: Bool = false,
+        timeout: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -33,6 +35,7 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         self.enabled = enabled
         self.catchUp = catchUp
         self.notifyOnFailure = notifyOnFailure
+        self.timeout = timeout
     }
 
     enum CodingKeys: String, CodingKey {
@@ -41,6 +44,7 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         case schedule, enabled
         case catchUp = "catch_up"
         case notifyOnFailure = "notify_on_failure"
+        case timeout
     }
 }
 
@@ -90,7 +94,8 @@ public final class TaskStore: @unchecked Sendable {
             schedule: decoded.schedule,
             enabled: decoded.enabled,
             catchUp: decoded.catchUp,
-            notifyOnFailure: decoded.notifyOnFailure
+            notifyOnFailure: decoded.notifyOnFailure,
+            timeout: decoded.timeout
         )
     }
 

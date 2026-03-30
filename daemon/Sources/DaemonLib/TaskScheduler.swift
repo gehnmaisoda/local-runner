@@ -3,12 +3,12 @@ import Yams
 import Core
 
 /// タスクのスケジューリングと実行を管理する。
-final class TaskScheduler: @unchecked Sendable {
+public final class TaskScheduler: @unchecked Sendable {
     private let taskStore: TaskStore
     private let logStore: LogStore
     private let executor = TaskExecutor()
     private let slackNotifier = SlackNotifier()
-    var displayWakeState: DisplayWakeStateChecking = DisplayWakeState()
+    public var displayWakeState: DisplayWakeStateChecking = DisplayWakeState()
 
     private var tasks: [TaskDefinition] = []
     private var nextFireDates: [String: Date] = [:]
@@ -18,38 +18,63 @@ final class TaskScheduler: @unchecked Sendable {
     private var lastDirModDate: Date = .distantPast
     private let lock = NSLock()
     private var isDarkWakePaused = false
+    private var isShuttingDown = false
+
+    /// ネットワーク未接続時の保留キュー（タスクID → タスク定義 + プレースホルダーのレコードID）。
+    /// 各タスクにつき最大1件保留。復帰時に同じレコードを更新する。
+    private var pendingTasks: [String: (task: TaskDefinition, recordId: UUID)] = [:]
+
+    /// ネットワーク監視
+    public var networkMonitor: NetworkChecking = NetworkMonitor()
 
     /// IPC通知用コールバック
-    var onNotification: ((IPCNotification) -> Void)?
+    public var onNotification: ((IPCNotification) -> Void)?
 
-    init(taskStore: TaskStore, logStore: LogStore) {
+    public init(taskStore: TaskStore, logStore: LogStore) {
         self.taskStore = taskStore
         self.logStore = logStore
     }
 
     // MARK: - 起動・停止
 
-    func start() {
+    public func start() {
+        logStore.cleanupOrphanedRecords()
         reloadTasks()
         startScheduleTimer()
         startFileWatcher()
         // 起動時に設定を読み込んで Slack URL をセット
         let settings = loadSettings()
         slackNotifier.webhookURL = settings.slackWebhookURL
+
+        // ネットワーク監視を起動
+        networkMonitor.onRestore = { [weak self] in
+            self?.executePendingTasks()
+        }
+        networkMonitor.start()
+
         let count = lock.withLock { tasks.count }
         Log.info("Scheduler", "\(count) 件のタスクで起動しました")
     }
 
-    func stop() {
+    public func stop() {
         timer?.invalidate()
         timer = nil
         fileWatchTimer?.invalidate()
         fileWatchTimer = nil
+        networkMonitor.stop()
+    }
+
+    /// Graceful shutdown: タイマー停止 → 実行中タスク停止。
+    public func shutdown() {
+        lock.withLock { isShuttingDown = true }
+        stop()
+        executor.stopAll(timeout: 5)
+        Log.info("Scheduler", "シャットダウン完了")
     }
 
     // MARK: - タスク管理
 
-    func reloadTasks() {
+    public func reloadTasks() {
         let loaded = taskStore.loadAll()
         lock.withLock {
             tasks = loaded
@@ -58,7 +83,7 @@ final class TaskScheduler: @unchecked Sendable {
         Log.info("Scheduler", "再読み込み: \(loaded.count) 件のタスク")
     }
 
-    func allTaskStatuses() -> [TaskStatus] {
+    public func allTaskStatuses() -> [TaskStatus] {
         lock.withLock {
             tasks.map { task in
                 TaskStatus(
@@ -71,7 +96,7 @@ final class TaskScheduler: @unchecked Sendable {
         }
     }
 
-    func runTaskNow(_ taskId: String) {
+    public func runTaskNow(_ taskId: String) {
         let task = lock.withLock { tasks.first { $0.id == taskId } }
         guard let task else {
             Log.info("Scheduler", "タスクが見つかりません: \(taskId)")
@@ -80,11 +105,11 @@ final class TaskScheduler: @unchecked Sendable {
         executeTask(task)
     }
 
-    func stopTask(_ taskId: String) {
+    public func stopTask(_ taskId: String) {
         executor.stop(taskId)
     }
 
-    func toggleTask(_ taskId: String) {
+    public func toggleTask(_ taskId: String) {
         let task: TaskDefinition? = lock.withLock {
             guard let idx = tasks.firstIndex(where: { $0.id == taskId }) else { return nil }
             tasks[idx] = TaskDefinition(
@@ -96,7 +121,8 @@ final class TaskScheduler: @unchecked Sendable {
                 schedule: tasks[idx].schedule,
                 enabled: !tasks[idx].enabled,
                 catchUp: tasks[idx].catchUp,
-                notifyOnFailure: tasks[idx].notifyOnFailure
+                notifyOnFailure: tasks[idx].notifyOnFailure,
+                timeout: tasks[idx].timeout
             )
             recalculateFireDatesLocked()
             return tasks[idx]
@@ -110,13 +136,13 @@ final class TaskScheduler: @unchecked Sendable {
         onNotification?(.tasksChanged)
     }
 
-    func saveTask(_ task: TaskDefinition) throws {
+    public func saveTask(_ task: TaskDefinition) throws {
         try taskStore.save(task)
         reloadTasks()
         onNotification?(.tasksChanged)
     }
 
-    func deleteTask(_ taskId: String) throws {
+    public func deleteTask(_ taskId: String) throws {
         try taskStore.delete(taskId)
         logStore.deleteHistory(taskId: taskId)
         reloadTasks()
@@ -125,22 +151,82 @@ final class TaskScheduler: @unchecked Sendable {
 
     // MARK: - スリープ復帰
 
-    func handleWake(lastSleepDate: Date) {
+    public func handleWake(lastSleepDate: Date) {
         let tasksSnapshot = lock.withLock { tasks }
         Log.info("Scheduler", "スリープ復帰を検知。\(Log.formatDate(lastSleepDate)) 以降の未実行タスクを確認中...")
-        for task in tasksSnapshot where task.enabled && task.catchUp {
-            if let nextFire = task.schedule.nextFireDate(after: lastSleepDate),
-               nextFire < Date() {
+
+        let catchUpTasks = tasksSnapshot.filter { task in
+            guard task.enabled, task.catchUp else { return false }
+            guard let nextFire = task.schedule.nextFireDate(after: lastSleepDate) else { return false }
+            return nextFire < Date()
+        }
+
+        if networkMonitor.isConnected {
+            for task in catchUpTasks {
                 Log.info("Scheduler", "キャッチアップ実行: \(task.name)")
                 executeTask(task)
             }
+        } else {
+            // オフラインなら保留キューに入れて、ネットワーク復帰時にまとめて実行
+            var newRecords: [ExecutionRecord] = []
+            lock.lock()
+            for task in catchUpTasks {
+                if let record = tryEnqueuePending(task) { newRecords.append(record) }
+            }
+            lock.unlock()
+            commitPendingRecords(newRecords)
         }
         lock.withLock { recalculateFireDatesLocked() }
     }
 
+    // MARK: - ネットワーク復帰
+
+    /// ネットワーク復帰時に保留キューのタスクを実行する。
+    /// 保留時に作成済みのプレースホルダーレコードを再利用する。
+    private func executePendingTasks() {
+        let pending: [(task: TaskDefinition, recordId: UUID)]
+        lock.lock()
+        pending = Array(pendingTasks.values)
+        pendingTasks.removeAll()
+        lock.unlock()
+
+        if !pending.isEmpty {
+            Log.info("Scheduler", "ネットワーク復帰: 保留中の \(pending.count) 件のタスクを実行します")
+            for entry in pending {
+                executeTaskWithRecord(entry.task, recordId: entry.recordId)
+            }
+        }
+    }
+
+    /// タスクが保留可能かチェックし、可能ならキューに登録する。
+    /// lock を保持した状態で呼ぶこと。副作用のあるレコード追加・通知は返り値で呼び出し元が行う。
+    private func tryEnqueuePending(_ task: TaskDefinition) -> ExecutionRecord? {
+        guard pendingTasks[task.id] == nil else {
+            Log.info("Scheduler", "オフライン: \(task.name) は既に保留中のため棄却")
+            return nil
+        }
+
+        let placeholder = ExecutionRecord(
+            taskId: task.id, taskName: task.name,
+            command: task.command, workingDirectory: task.workingDirectory ?? "~",
+            status: .pending
+        )
+        pendingTasks[task.id] = (task: task, recordId: placeholder.id)
+        Log.info("Scheduler", "オフライン: \(task.name) を保留キューに追加")
+        return placeholder
+    }
+
+    /// 保留キューへの追加結果を元に、lock の外で副作用（ログ書き込み・IPC通知）を実行する。
+    private func commitPendingRecords(_ records: [ExecutionRecord]) {
+        for record in records {
+            logStore.append(record)
+            onNotification?(.taskStarted(record.taskId))
+        }
+    }
+
     // MARK: - 設定
 
-    func loadSettings() -> GlobalSettings {
+    public func loadSettings() -> GlobalSettings {
         let url = ConfigPaths.settingsFile
         guard let data = try? Data(contentsOf: url),
               let yaml = String(data: data, encoding: .utf8) else {
@@ -149,7 +235,7 @@ final class TaskScheduler: @unchecked Sendable {
         return (try? YAMLDecoder().decode(GlobalSettings.self, from: yaml)) ?? GlobalSettings()
     }
 
-    func saveSettings(_ settings: GlobalSettings) throws {
+    public func saveSettings(_ settings: GlobalSettings) throws {
         let yaml = try YAMLEncoder().encode(settings)
         try yaml.write(to: ConfigPaths.settingsFile, atomically: true, encoding: .utf8)
         slackNotifier.webhookURL = settings.slackWebhookURL
@@ -176,6 +262,7 @@ final class TaskScheduler: @unchecked Sendable {
                 isDarkWakePaused = true
                 Log.info("Scheduler", "DarkWake検知: スケジュール実行を一時停止します")
             }
+            // fire date は進めない → ディスプレイ復帰後にまとめて実行される
             return
         }
         if isDarkWakePaused {
@@ -185,9 +272,21 @@ final class TaskScheduler: @unchecked Sendable {
 
         let (tasksSnapshot, fireDates) = lock.withLock { (tasks, nextFireDates) }
         let now = Date()
+        let dueTasks = ScheduleLogic.dueTasks(from: tasksSnapshot, nextFireDates: fireDates, at: now)
 
-        for task in ScheduleLogic.dueTasks(from: tasksSnapshot, nextFireDates: fireDates, at: now) {
-            executeTask(task)
+        if networkMonitor.isConnected {
+            for task in dueTasks {
+                executeTask(task)
+            }
+        } else {
+            // オフライン時: 各タスクにつき1件まで保留（プレースホルダー付き）
+            var newRecords: [ExecutionRecord] = []
+            lock.lock()
+            for task in dueTasks {
+                if let record = tryEnqueuePending(task) { newRecords.append(record) }
+            }
+            lock.unlock()
+            commitPendingRecords(newRecords)
         }
 
         lock.withLock { recalculateFireDatesLocked() }
@@ -208,20 +307,32 @@ final class TaskScheduler: @unchecked Sendable {
     }
 
     private func executeTask(_ task: TaskDefinition) {
+        guard !lock.withLock({ isShuttingDown }) else { return }
         Log.info("Scheduler", "実行開始: \(task.name)")
         onNotification?(.taskStarted(task.id))
 
         // running 状態の仮レコードを保存（UI に実行中表示用）
         let placeholder = ExecutionRecord(taskId: task.id, taskName: task.name, command: task.command, workingDirectory: task.workingDirectory ?? "~")
         logStore.append(placeholder)
-        let recordId = placeholder.id
 
+        runTask(task, recordId: placeholder.id)
+    }
+
+    /// 保留キューから復帰したタスクを実行する。プレースホルダーは保留時に作成済み。
+    private func executeTaskWithRecord(_ task: TaskDefinition, recordId: UUID) {
+        guard !lock.withLock({ isShuttingDown }) else { return }
+        Log.info("Scheduler", "実行開始（保留復帰）: \(task.name)")
+        onNotification?(.taskStarted(task.id))
+
+        runTask(task, recordId: recordId)
+    }
+
+    /// タスクを非同期実行し、指定レコードIDで結果を更新する。
+    private func runTask(_ task: TaskDefinition, recordId: UUID) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             let result = self.executor.execute(task)
-            // 仮レコードを完了結果で更新
-            var finalRecord = result
-            finalRecord = ExecutionRecord(
+            let finalRecord = ExecutionRecord(
                 id: recordId,
                 taskId: result.taskId,
                 taskName: result.taskName,
@@ -237,7 +348,7 @@ final class TaskScheduler: @unchecked Sendable {
             self.logStore.update(finalRecord)
             self.onNotification?(.taskCompleted(task.id, record: finalRecord))
 
-            if finalRecord.status == .failure && task.notifyOnFailure {
+            if (finalRecord.status == .failure || finalRecord.status == .timeout) && task.notifyOnFailure {
                 self.slackNotifier.notifyFailure(task: task, record: finalRecord)
             }
 

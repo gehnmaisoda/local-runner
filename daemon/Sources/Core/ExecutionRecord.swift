@@ -6,10 +6,12 @@ public enum ExecutionStatus: String, Codable, Sendable {
     case success
     case failure
     case stopped
+    case timeout
+    case pending
 }
 
 /// タスク1回分の実行記録。
-public struct ExecutionRecord: Codable, Sendable, Identifiable {
+public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: UUID
     public let taskId: String
     public let taskName: String

@@ -1,5 +1,6 @@
 import Foundation
 import Core
+import DaemonLib
 
 /// local-runner daemon のエントリーポイント。
 /// LaunchAgent として常時起動し、タスクのスケジューリング・実行・ログ記録を担当する。
@@ -26,6 +27,31 @@ if let gapStart = wakeDetector.detectStartupGap() {
 }
 
 wakeDetector.start()
+
+// MARK: - Graceful shutdown
+
+/// シグナルソースを保持する（GC されないようにグローバルで参照を持つ）。
+nonisolated(unsafe) var signalSources: [any DispatchSourceSignal] = []
+
+/// シグナルをディスパッチソースで受け取り、安全にシャットダウンする。
+func installSignalHandler(signal sig: Int32) {
+    // シグナルのデフォルト動作を無効化
+    Foundation.signal(sig, SIG_IGN)
+
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler {
+        Log.info("main", "シグナル \(sig) を受信。シャットダウンを開始します...")
+        scheduler.shutdown()
+        ipcServer.shutdown()
+        Log.info("main", "シャットダウン完了。終了します")
+        exit(0)
+    }
+    source.resume()
+    signalSources.append(source)
+}
+
+installSignalHandler(signal: SIGTERM)
+installSignalHandler(signal: SIGINT)
 
 Log.info("main", "起動しました (PID: \(ProcessInfo.processInfo.processIdentifier))")
 

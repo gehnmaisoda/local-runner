@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { TaskStatus, TaskDefinition, ExecutionRecord, Schedule } from "./types.ts";
 import { formatDate, formatDuration, formatSchedule, statusIcon } from "./format.ts";
 import { LogModal } from "./LogViewer.tsx";
@@ -9,6 +9,8 @@ import { useCountdown } from "./hooks.ts";
 interface Props {
   tasks: TaskStatus[];
   loading: boolean;
+  isNewTask: boolean;
+  onNewTaskChange: (v: boolean) => void;
   onRun: (id: string) => void;
   onStop: (id: string) => void;
   onSave: (task: TaskDefinition) => Promise<boolean>;
@@ -96,6 +98,37 @@ function TaskListItem({ task, selected, onSelect }: {
       )}
     </div>
   );
+}
+
+// --- Directory grouping ---
+
+interface TaskGroup {
+  dir: string;
+  label: string;
+  tasks: TaskStatus[];
+}
+
+/** /Users/username/... → ~/... */
+export function resolveHome(dir: string): string {
+  return dir.replace(/^\/Users\/[^/]+/, "~");
+}
+
+/** ~/a/b/c/d → c/d (4セグメント以上は末尾2つ、3つ以下はそのまま) */
+export function shortenDir(dir: string): string {
+  const resolved = resolveHome(dir);
+  const parts = resolved.split("/").filter((p) => p !== "");
+  if (parts.length <= 3) return resolved;
+  return parts.slice(-2).join("/");
+}
+
+function groupByDirectory(tasks: TaskStatus[]): TaskGroup[] {
+  const map = new Map<string, TaskStatus[]>();
+  for (const t of tasks) {
+    const dir = resolveHome(t.task.working_directory || "~");
+    if (!map.has(dir)) map.set(dir, []);
+    map.get(dir)!.push(t);
+  }
+  return Array.from(map, ([dir, tasks]) => ({ dir, label: shortenDir(dir), tasks }));
 }
 
 // --- Constants ---
@@ -195,24 +228,26 @@ function NumInput({ value, onChange, min, max, className }: {
   );
 }
 
-// --- Detail Panel ---
+// --- Task Form Fields (shared between detail panel and new task modal) ---
 
-interface DetailProps {
-  task?: TaskDefinition;
-  taskStatus?: TaskStatus;
-  isNew: boolean;
-  onSave: (task: TaskDefinition) => Promise<boolean>;
-  onRun: () => void;
-  onStop: () => void;
-  onDelete: () => void;
+interface TaskFormState {
+  name: string; setName: (v: string) => void;
+  command: string; setCommand: (v: string) => void;
+  workingDirectory: string; setWorkingDirectory: (v: string) => void;
+  dirError: string | null; setDirError: (v: string | null) => void;
+  dirValidating: React.MutableRefObject<boolean>;
+  catchUp: boolean; setCatchUp: (v: boolean) => void;
+  notifyOnFailure: boolean; setNotifyOnFailure: (v: boolean) => void;
+  timeout: number; setTimeout_: (v: number) => void;
+  scheduleType: string; setScheduleType: (v: string) => void;
+  hour: number; setHour: (v: number) => void;
+  minute: number; setMinute: (v: number) => void;
+  weekdays: number[]; toggleWeekday: (d: number) => void;
+  monthDays: number[]; toggleMonthDay: (d: number) => void;
+  cronExpr: string; setCronExpr: (v: string) => void;
 }
 
-const LOG_PAGE_SIZE = 15;
-
-function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDelete }: DetailProps) {
-  const countdown = useCountdown(taskStatus?.nextRunAt);
-  const [autoId] = useState(() => generateId());
-
+function useTaskForm(task?: TaskDefinition): TaskFormState {
   const [name, setName] = useState(task?.name ?? "");
   const [command, setCommand] = useState(task?.command ?? "");
   const [workingDirectory, setWorkingDirectory] = useState(task?.working_directory ?? "");
@@ -252,7 +287,252 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
     });
   };
 
-  const [creating, setCreating] = useState(false);
+  return {
+    name, setName, command, setCommand,
+    workingDirectory, setWorkingDirectory, dirError, setDirError, dirValidating,
+    catchUp, setCatchUp, notifyOnFailure, setNotifyOnFailure, timeout, setTimeout_,
+    scheduleType, setScheduleType, hour, setHour, minute, setMinute,
+    weekdays, toggleWeekday, monthDays, toggleMonthDay, cronExpr, setCronExpr,
+  };
+}
+
+function buildTaskObj(form: TaskFormState, id: string, enabled: boolean): TaskDefinition {
+  return {
+    id,
+    name: form.name.trim(),
+    command: form.command,
+    working_directory: form.workingDirectory.trim() || undefined,
+    schedule: buildSchedule(form.scheduleType, form.hour, form.minute, form.weekdays, form.monthDays, form.cronExpr),
+    enabled,
+    catch_up: form.catchUp,
+    notify_on_failure: form.notifyOnFailure,
+    timeout: form.timeout > 0 ? form.timeout : undefined,
+  };
+}
+
+function TaskFormFields({ form }: { form: TaskFormState }) {
+  return (
+    <>
+      <div className="detail-section">
+        <label className="detail-label">実行コマンド</label>
+        <textarea
+          className="form-textarea"
+          value={form.command}
+          onChange={(e) => form.setCommand(e.target.value)}
+          placeholder="echo 'hello world'"
+          rows={6}
+          autoComplete="off"
+          data-1p-ignore
+        />
+      </div>
+
+      <div className="detail-section">
+        <label className="detail-label">実行ディレクトリ</label>
+        <input
+          className={`form-input ${form.dirError ? "input-error" : ""}`}
+          type="text"
+          value={form.workingDirectory}
+          onChange={(e) => { form.setWorkingDirectory(e.target.value); form.setDirError(null); }}
+          autoComplete="off"
+          data-1p-ignore
+          onBlur={async () => {
+            const trimmed = form.workingDirectory.trim();
+            if (!trimmed) { form.setDirError(null); return; }
+            form.dirValidating.current = true;
+            try {
+              const res = await fetch(`/api/check-dir?path=${encodeURIComponent(trimmed)}`);
+              const data = await res.json();
+              form.setDirError(data.exists ? null : "ディレクトリが存在しません");
+            } catch {
+              form.setDirError(null);
+            } finally {
+              form.dirValidating.current = false;
+            }
+          }}
+          placeholder="~/projects/myapp"
+        />
+        {form.dirError && <div className="field-error">{form.dirError}</div>}
+        <div className="field-hint-small">※ 省略時はホームディレクトリで実行されます</div>
+      </div>
+
+      <div className="detail-section">
+        <label className="detail-label">実行スケジュール (JST)</label>
+        <div className="sched">
+          <div className="sched-pills">
+            {SCHEDULE_TYPES.map((st) => (
+              <button
+                key={st.value}
+                type="button"
+                className={`sched-pill ${form.scheduleType === st.value ? "active" : ""}`}
+                onClick={() => form.setScheduleType(st.value)}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
+
+          {form.scheduleType === "every_minute" && (
+            <div className="sched-hint">毎分実行されます</div>
+          )}
+
+          {form.scheduleType === "hourly" && (
+            <div className="sched-sentence">
+              毎時
+              <div className="sched-time-box">
+                <NumInput className="sched-time-m" min={0} max={59} value={form.minute} onChange={form.setMinute} />
+              </div>
+              分に実行
+            </div>
+          )}
+
+          {form.scheduleType === "daily" && (
+            <div className="sched-sentence">
+              毎日
+              <div className="sched-time-box">
+                <NumInput className="sched-time-h" min={0} max={23} value={form.hour} onChange={form.setHour} />
+                <span className="sched-time-sep">:</span>
+                <NumInput className="sched-time-m" min={0} max={59} value={form.minute} onChange={form.setMinute} />
+              </div>
+              に実行
+            </div>
+          )}
+
+          {form.scheduleType === "weekly" && (
+            <>
+              <div className="sched-weekdays">
+                {WEEKDAYS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    className={`weekday-pill ${form.weekdays.includes(d.value) ? "active" : ""}`}
+                    onClick={() => form.toggleWeekday(d.value)}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <div className="sched-sentence">
+                <div className="sched-time-box">
+                  <NumInput className="sched-time-h" min={0} max={23} value={form.hour} onChange={form.setHour} />
+                  <span className="sched-time-sep">:</span>
+                  <NumInput className="sched-time-m" min={0} max={59} value={form.minute} onChange={form.setMinute} />
+                </div>
+                に実行
+              </div>
+            </>
+          )}
+
+          {form.scheduleType === "monthly" && (
+            <>
+              <div className="sched-monthdays">
+                {MONTH_DAYS.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`monthday-pill ${form.monthDays.includes(d) ? "active" : ""}`}
+                    onClick={() => form.toggleMonthDay(d)}
+                  >
+                    {d}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`monthday-pill last-day ${form.monthDays.includes(-1) ? "active" : ""}`}
+                  onClick={() => form.toggleMonthDay(-1)}
+                >
+                  月末
+                </button>
+              </div>
+              <div className="sched-sentence">
+                <div className="sched-time-box">
+                  <NumInput className="sched-time-h" min={0} max={23} value={form.hour} onChange={form.setHour} />
+                  <span className="sched-time-sep">:</span>
+                  <NumInput className="sched-time-m" min={0} max={59} value={form.minute} onChange={form.setMinute} />
+                </div>
+                に実行
+              </div>
+            </>
+          )}
+
+          {form.scheduleType === "cron" && (
+            <input
+              className="form-input sched-cron"
+              type="text"
+              value={form.cronExpr}
+              onChange={(e) => form.setCronExpr(e.target.value)}
+              placeholder="*/15 * * * *"
+              autoComplete="off"
+              data-1p-ignore
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="detail-section">
+        <label className="detail-label">オプション</label>
+        <div className="checkbox-group">
+          <label className="checkbox-label">
+            <input type="checkbox" checked={form.catchUp} onChange={(e) => form.setCatchUp(e.target.checked)} />
+            スリープ復帰時に未実行分を1回実行
+            <span className="tooltip-wrap">
+              <span className="tooltip-hint">?</span>
+              <span className="tooltip-bubble">
+                スリープ復帰時に、実行されなかったスケジュールがあれば <strong>1回だけ</strong> 再実行します。複数回分溜まっていても実行は1回です。
+                <br /><br />
+                遡る範囲は直前のスリープ期間のみです。
+                <br /><br />
+                例: 毎朝 08:00 のタスクで 11:00 に復帰 → 即座に1回実行
+              </span>
+            </span>
+          </label>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={form.notifyOnFailure} onChange={(e) => form.setNotifyOnFailure(e.target.checked)} />
+            失敗時に通知 (Slack)
+          </label>
+        </div>
+        <div className="timeout-row">
+          <label className="detail-label-inline">タイムアウト</label>
+          <input
+            className="form-input timeout-input"
+            type="text"
+            inputMode="numeric"
+            value={form.timeout || ""}
+            onChange={(e) => {
+              const n = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
+              form.setTimeout_(n > 0 ? n : 0);
+            }}
+            placeholder="なし"
+          />
+          <span className="field-hint-inline">秒</span>
+          <span className="tooltip-wrap">
+            <span className="tooltip-hint">?</span>
+            <span className="tooltip-bubble">
+              設定するとデフォルトタイムアウトより優先されます。
+            </span>
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// --- Detail Panel (editing existing tasks) ---
+
+interface DetailProps {
+  task: TaskDefinition;
+  taskStatus: TaskStatus;
+  onSave: (task: TaskDefinition) => Promise<boolean>;
+  onRun: () => void;
+  onStop: () => void;
+  onDelete: () => void;
+}
+
+const LOG_PAGE_SIZE = 15;
+
+function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete }: DetailProps) {
+  const countdown = useCountdown(taskStatus.nextRunAt);
+  const form = useTaskForm(task);
+
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // History
@@ -262,7 +542,6 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
   const [viewingLog, setViewingLog] = useState<ExecutionRecord | null>(null);
 
   const loadHistory = useCallback(async (limit: number) => {
-    if (!task?.id) return;
     try {
       const res = await fetch(`/api/history?taskId=${task.id}&limit=${limit + 1}`);
       const data = await res.json();
@@ -271,38 +550,27 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
       setHasMore(records.length > limit);
       setHistory(records.slice(0, limit));
     } catch { /* ignore */ }
-  }, [task?.id]);
+  }, [task.id]);
 
   useEffect(() => {
     loadHistory(historyLimit);
-  }, [loadHistory, historyLimit, taskStatus?.lastRun?.id, taskStatus?.isRunning]);
+  }, [loadHistory, historyLimit, taskStatus.lastRun?.id, taskStatus.isRunning]);
 
   const handleLoadMore = () => {
     setHistoryLimit((prev) => prev + LOG_PAGE_SIZE);
   };
 
-  // --- Auto-save (existing tasks only) ---
+  // --- Auto-save ---
   const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; });
   const isFirstRender = useRef(true);
 
   useEffect(() => {
-    if (isNew || !task?.id) return;
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    if (!name.trim() || !command || dirValidating.current) { setSaveStatus("idle"); return; }
+    if (!form.name.trim() || !form.command || form.dirValidating.current) { setSaveStatus("idle"); return; }
 
     setSaveStatus("idle");
-    const taskObj: TaskDefinition = {
-      id: task.id,
-      name: name.trim(),
-      command,
-      working_directory: workingDirectory.trim() || undefined,
-      schedule: buildSchedule(scheduleType, hour, minute, weekdays, monthDays, cronExpr),
-      enabled: task.enabled,
-      catch_up: catchUp,
-      notify_on_failure: notifyOnFailure,
-      timeout: timeout > 0 ? timeout : undefined,
-    };
+    const taskObj = buildTaskObj(form, task.id, task.enabled);
 
     const timer = setTimeout(async () => {
       setSaveStatus("saving");
@@ -312,24 +580,7 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNew, task?.id, name, command, workingDirectory, scheduleType, hour, minute, JSON.stringify(weekdays), JSON.stringify(monthDays), cronExpr, catchUp, notifyOnFailure, timeout]);
-
-  // --- Create (new tasks only) ---
-  const handleCreate = async () => {
-    setCreating(true);
-    await onSave({
-      id: autoId,
-      name: name.trim(),
-      command,
-      working_directory: workingDirectory.trim() || undefined,
-      schedule: buildSchedule(scheduleType, hour, minute, weekdays, monthDays, cronExpr),
-      enabled: true,
-      catch_up: catchUp,
-      notify_on_failure: notifyOnFailure,
-      timeout: timeout > 0 ? timeout : undefined,
-    });
-    setCreating(false);
-  };
+  }, [task.id, form.name, form.command, form.workingDirectory, form.scheduleType, form.hour, form.minute, JSON.stringify(form.weekdays), JSON.stringify(form.monthDays), form.cronExpr, form.catchUp, form.notifyOnFailure, form.timeout]);
 
   return (
     <div className="detail-panel">
@@ -337,268 +588,141 @@ function TaskDetailPanel({ task, taskStatus, isNew, onSave, onRun, onStop, onDel
         <input
           className="detail-name-input"
           type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={form.name}
+          onChange={(e) => form.setName(e.target.value)}
           placeholder="タスク名"
-          autoFocus={isNew}
+          autoComplete="off"
+          data-1p-ignore
         />
         <div className="detail-header-actions">
-          {!isNew && (
-            <span className={`save-status ${saveStatus}`}>
-              {saveStatus === "saving" ? "保存中..." : saveStatus === "saved" ? "\u2713" : ""}
-            </span>
-          )}
-          {!isNew && taskStatus && (
-            taskStatus.isRunning ? (
-              <button className="btn btn-stop" onClick={onStop}><StopIcon />停止</button>
-            ) : (
-              <button className="btn btn-run" onClick={onRun}><PlayIcon />実行</button>
-            )
-          )}
-          {isNew && (
-            <button
-              className="btn btn-primary"
-              onClick={handleCreate}
-              disabled={creating || !name.trim() || !command}
-            >
-              作成
-            </button>
+          <span className={`save-status ${saveStatus}`}>
+            {saveStatus === "saving" ? "保存中..." : saveStatus === "saved" ? "\u2713" : ""}
+          </span>
+          {taskStatus.isRunning ? (
+            <button className="btn btn-stop" onClick={onStop}><StopIcon />停止</button>
+          ) : (
+            <button className="btn btn-run" onClick={onRun}><PlayIcon />実行</button>
           )}
         </div>
       </div>
 
-      <div className={`detail-body ${!isNew ? "two-col" : ""}`}>
+      <div className="detail-body two-col">
         <div className="detail-col-form">
-          <div className="detail-section">
-            <label className="detail-label">実行コマンド</label>
-            <textarea
-              className="form-textarea"
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              placeholder="echo 'hello world'"
-              rows={6}
-            />
+          <TaskFormFields form={form} />
+          <div className="detail-section detail-delete">
+            <button className="btn btn-danger-ghost" onClick={onDelete}>
+              <TrashIcon />タスクを削除
+            </button>
           </div>
-
-          <div className="detail-section">
-            <label className="detail-label">実行ディレクトリ</label>
-            <input
-              className={`form-input ${dirError ? "input-error" : ""}`}
-              type="text"
-              value={workingDirectory}
-              onChange={(e) => { setWorkingDirectory(e.target.value); setDirError(null); }}
-              onBlur={async () => {
-                const trimmed = workingDirectory.trim();
-                if (!trimmed) { setDirError(null); return; }
-                dirValidating.current = true;
-                try {
-                  const res = await fetch(`/api/check-dir?path=${encodeURIComponent(trimmed)}`);
-                  const data = await res.json();
-                  setDirError(data.exists ? null : "ディレクトリが存在しません");
-                } catch {
-                  setDirError(null);
-                } finally {
-                  dirValidating.current = false;
-                }
-              }}
-              placeholder="~/projects/myapp"
-            />
-            {dirError && <div className="field-error">{dirError}</div>}
-            <div className="field-hint-small">※ 省略時はホームディレクトリで実行されます</div>
-          </div>
-
-          <div className="detail-section">
-            <label className="detail-label">実行スケジュール (JST)</label>
-            <div className="sched">
-              <div className="sched-pills">
-                {SCHEDULE_TYPES.map((st) => (
-                  <button
-                    key={st.value}
-                    type="button"
-                    className={`sched-pill ${scheduleType === st.value ? "active" : ""}`}
-                    onClick={() => setScheduleType(st.value)}
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
-
-              {scheduleType === "every_minute" && (
-                <div className="sched-hint">毎分実行されます</div>
-              )}
-
-              {scheduleType === "hourly" && (
-                <div className="sched-sentence">
-                  毎時
-                  <div className="sched-time-box">
-                    <NumInput className="sched-time-m" min={0} max={59} value={minute} onChange={setMinute} />
-                  </div>
-                  分に実行
-                </div>
-              )}
-
-              {scheduleType === "daily" && (
-                <div className="sched-sentence">
-                  毎日
-                  <div className="sched-time-box">
-                    <NumInput className="sched-time-h" min={0} max={23} value={hour} onChange={setHour} />
-                    <span className="sched-time-sep">:</span>
-                    <NumInput className="sched-time-m" min={0} max={59} value={minute} onChange={setMinute} />
-                  </div>
-                  に実行
-                </div>
-              )}
-
-              {scheduleType === "weekly" && (
-                <>
-                  <div className="sched-weekdays">
-                    {WEEKDAYS.map((d) => (
-                      <button
-                        key={d.value}
-                        type="button"
-                        className={`weekday-pill ${weekdays.includes(d.value) ? "active" : ""}`}
-                        onClick={() => toggleWeekday(d.value)}
-                      >
-                        {d.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="sched-sentence">
-                    <div className="sched-time-box">
-                      <NumInput className="sched-time-h" min={0} max={23} value={hour} onChange={setHour} />
-                      <span className="sched-time-sep">:</span>
-                      <NumInput className="sched-time-m" min={0} max={59} value={minute} onChange={setMinute} />
-                    </div>
-                    に実行
-                  </div>
-                </>
-              )}
-
-              {scheduleType === "monthly" && (
-                <>
-                  <div className="sched-monthdays">
-                    {MONTH_DAYS.map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        className={`monthday-pill ${monthDays.includes(d) ? "active" : ""}`}
-                        onClick={() => toggleMonthDay(d)}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={`monthday-pill last-day ${monthDays.includes(-1) ? "active" : ""}`}
-                      onClick={() => toggleMonthDay(-1)}
-                    >
-                      月末
-                    </button>
-                  </div>
-                  <div className="sched-sentence">
-                    <div className="sched-time-box">
-                      <NumInput className="sched-time-h" min={0} max={23} value={hour} onChange={setHour} />
-                      <span className="sched-time-sep">:</span>
-                      <NumInput className="sched-time-m" min={0} max={59} value={minute} onChange={setMinute} />
-                    </div>
-                    に実行
-                  </div>
-                </>
-              )}
-
-              {scheduleType === "cron" && (
-                <input
-                  className="form-input sched-cron"
-                  type="text"
-                  value={cronExpr}
-                  onChange={(e) => setCronExpr(e.target.value)}
-                  placeholder="*/15 * * * *"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="detail-section">
-            <label className="detail-label">オプション</label>
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input type="checkbox" checked={catchUp} onChange={(e) => setCatchUp(e.target.checked)} />
-                スリープ復帰時に未実行分を1回実行
-                <span className="tooltip-wrap">
-                  <span className="tooltip-hint">?</span>
-                  <span className="tooltip-bubble">
-                    スリープ復帰時に、実行されなかったスケジュールがあれば <strong>1回だけ</strong> 再実行します。複数回分溜まっていても実行は1回です。
-                    <br /><br />
-                    遡る範囲は直前のスリープ期間のみです。
-                    <br /><br />
-                    例: 毎朝 08:00 のタスクで 11:00 に復帰 → 即座に1回実行
-                  </span>
-                </span>
-              </label>
-              <label className="checkbox-label">
-                <input type="checkbox" checked={notifyOnFailure} onChange={(e) => setNotifyOnFailure(e.target.checked)} />
-                失敗時に通知 (Slack)
-              </label>
-            </div>
-            <div className="timeout-row">
-              <label className="detail-label-inline">タイムアウト</label>
-              <input
-                className="form-input timeout-input"
-                type="text"
-                inputMode="numeric"
-                value={timeout || ""}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
-                  setTimeout_(n > 0 ? n : 0);
-                }}
-                placeholder="なし"
-              />
-              <span className="field-hint-inline">秒</span>
-            </div>
-          </div>
-
-          {!isNew && (
-            <div className="detail-section detail-delete">
-              <button className="btn btn-danger-ghost" onClick={onDelete}>
-                <TrashIcon />タスクを削除
-              </button>
-            </div>
-          )}
         </div>
 
-        {!isNew && (
-          <div className="detail-col-log">
-            {taskStatus?.nextRunAt && (
-              <div className="detail-section">
-                <label className="detail-label">次回実行</label>
-                <span className="next-run-badge">
-                  {formatDate(taskStatus.nextRunAt)}
-                  {countdown && <span className="next-run-countdown">（{countdown}）</span>}
-                </span>
-              </div>
-            )}
-            <label className="detail-label">実行ログ</label>
-            {history.length > 0 ? (
-              <div className="log-list">
-                {history.map((r) => (
-                  <LogRow key={r.id} record={r} onClick={() => setViewingLog(r)} />
-                ))}
-                {hasMore && (
-                  <button className="load-more-btn" onClick={handleLoadMore}>
-                    もっと読み込む
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="log-empty-hint">まだ実行されていません</div>
-            )}
-          </div>
-        )}
+        <div className="detail-col-log">
+          {taskStatus.nextRunAt && (
+            <div className="detail-section">
+              <label className="detail-label">次回実行</label>
+              <span className="next-run-badge">
+                {formatDate(taskStatus.nextRunAt)}
+                {countdown && <span className="next-run-countdown">（{countdown}）</span>}
+              </span>
+            </div>
+          )}
+          <label className="detail-label">実行ログ</label>
+          {history.length > 0 ? (
+            <div className="log-list">
+              {history.map((r) => (
+                <LogRow key={r.id} record={r} onClick={() => setViewingLog(r)} />
+              ))}
+              {hasMore && (
+                <button className="load-more-btn" onClick={handleLoadMore}>
+                  もっと読み込む
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="log-empty-hint">まだ実行されていません</div>
+          )}
+        </div>
       </div>
 
       {viewingLog && (
         <LogModal record={viewingLog} onClose={() => setViewingLog(null)} />
       )}
+    </div>
+  );
+}
+
+// --- New Task Modal ---
+
+function NewTaskModal({ onSave, onClose }: {
+  onSave: (task: TaskDefinition) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const [autoId] = useState(() => generateId());
+  const form = useTaskForm();
+  const [creating, setCreating] = useState(false);
+
+  const hasContent = form.name.trim() !== "" || form.command !== "";
+  const canCreate = form.name.trim() !== "" && form.command !== "";
+
+  // モーダル表示中は背後のスクロールを無効化
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const handleClose = () => {
+    if (hasContent && !confirm("入力内容が保存されていません。\n入力内容が消えますが、よろしいですか？")) return;
+    onClose();
+  };
+
+  const handleCreate = async () => {
+    setCreating(true);
+    const ok = await onSave(buildTaskObj(form, autoId, true));
+    setCreating(false);
+    if (ok) onClose();
+  };
+
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") handleCloseRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="modal modal-new-task" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>新規タスク</h2>
+          <button className="modal-close" onClick={handleClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          <div className="detail-section">
+            <label className="detail-label">タスク名</label>
+            <input
+              className="form-input"
+              type="text"
+              value={form.name}
+              onChange={(e) => form.setName(e.target.value)}
+              placeholder="タスク名"
+              autoFocus
+              autoComplete="off"
+              data-1p-ignore
+            />
+          </div>
+          <TaskFormFields form={form} />
+        </div>
+        <div className="modal-footer">
+          <button
+            className="btn btn-primary"
+            onClick={handleCreate}
+            disabled={creating || !canCreate}
+          >
+            作成
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -618,8 +742,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         <h2 className="onboarding-title">最初のタスクを作成しましょう</h2>
         <p className="onboarding-desc">
           コマンドの定期実行をスケジュールできます。<br />
-          バックアップ、デプロイ、ヘルスチェックなど、<br />
-          繰り返し実行したいタスクを登録してみましょう。
+          エージェントの定期実行、毎日の情報収集など、<br />
+          自動化したいタスクを登録してみましょう。
         </p>
         <button className="btn btn-primary onboarding-cta" onClick={onCreate}>
           + 最初のタスクを作成
@@ -629,107 +753,88 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function OnboardingForm({ onSave }: { onSave: (task: TaskDefinition) => Promise<boolean> }) {
-  return (
-    <div className="onboarding-form-wrap">
-      <TaskDetailPanel
-        isNew
-        onSave={onSave}
-        onRun={() => {}}
-        onStop={() => {}}
-        onDelete={() => {}}
-      />
-    </div>
-  );
-}
-
 // --- Main View ---
 
-export function TasksView({ tasks, loading, onRun, onStop, onSave, onDelete }: Props) {
+export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, onStop, onSave, onDelete }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isNew, setIsNew] = useState(false);
+
+  const groups = useMemo(() => groupByDirectory(tasks), [tasks]);
 
   // タスクがあるのに未選択なら最初のタスクを自動選択
-  const effectiveId = selectedId ?? (tasks.length > 0 && !isNew ? tasks[0]!.task.id : null);
-  const selectedTask = isNew ? undefined : tasks.find((t) => t.task.id === effectiveId);
+  const effectiveId = selectedId ?? (tasks.length > 0 ? tasks[0]!.task.id : null);
+  const selectedTask = effectiveId ? tasks.find((t) => t.task.id === effectiveId) : undefined;
 
   // Clear selection if selected task was deleted
   useEffect(() => {
-    if (selectedId && !isNew && !tasks.find((t) => t.task.id === selectedId)) {
+    if (selectedId && !tasks.find((t) => t.task.id === selectedId)) {
       setSelectedId(null);
     }
-  }, [tasks, selectedId, isNew]);
+  }, [tasks, selectedId]);
 
   // --- Loading ---
   if (loading) return null;
 
   // --- Empty state: no tasks ---
-  if (tasks.length === 0 && !selectedId) {
-    if (isNew) {
-      return (
-        <OnboardingForm
-          onSave={async (task) => {
-            const ok = await onSave(task);
-            if (ok) {
-              setSelectedId(task.id);
-              setIsNew(false);
-            }
-            return ok;
-          }}
-        />
-      );
-    }
-    return <EmptyState onCreate={() => setIsNew(true)} />;
+  if (tasks.length === 0) {
+    return (
+      <>
+        <EmptyState onCreate={() => onNewTaskChange(true)} />
+        {isNewTask && (
+          <NewTaskModal
+            onSave={onSave}
+            onClose={() => onNewTaskChange(false)}
+          />
+        )}
+      </>
+    );
   }
 
   // --- Normal master-detail ---
   return (
-    <div className="master-detail">
-      <div className="task-list-panel">
-        <button
-          className="btn btn-primary new-task-btn"
-          onClick={() => { setIsNew(true); setSelectedId(null); }}
-        >
-          + 新規タスク
-        </button>
-        <div className="task-list">
-          {tasks.map((t) => (
-            <TaskListItem
-              key={t.task.id}
-              task={t}
-              selected={t.task.id === effectiveId && !isNew}
-              onSelect={() => { setSelectedId(t.task.id); setIsNew(false); }}
+    <>
+      <div className="master-detail">
+        <div className="task-list-panel">
+          <div className="task-list">
+            {groups.map((group) => (
+              <div key={group.dir} className="task-group">
+                <div className="task-group-header" title={group.dir}>{group.label}</div>
+                {group.tasks.map((t) => (
+                  <TaskListItem
+                    key={t.task.id}
+                    task={t}
+                    selected={t.task.id === effectiveId}
+                    onSelect={() => setSelectedId(t.task.id)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="task-detail-panel">
+          {selectedTask && (
+            <TaskDetailPanel
+              key={effectiveId}
+              task={selectedTask.task}
+              taskStatus={selectedTask}
+              onSave={onSave}
+              onRun={() => onRun(selectedTask.task.id)}
+              onStop={() => onStop(selectedTask.task.id)}
+              onDelete={() => {
+                onDelete(selectedTask.task.id, selectedTask.task.name);
+                setSelectedId(null);
+              }}
             />
-          ))}
+          )}
         </div>
       </div>
 
-      <div className="task-detail-panel">
-        {selectedTask || isNew ? (
-          <TaskDetailPanel
-            key={isNew ? "__new__" : effectiveId}
-            task={selectedTask?.task}
-            taskStatus={selectedTask}
-            isNew={isNew}
-            onSave={async (task) => {
-              const ok = await onSave(task);
-              if (ok && isNew) {
-                setSelectedId(task.id);
-                setIsNew(false);
-              }
-              return ok;
-            }}
-            onRun={() => effectiveId && onRun(effectiveId)}
-            onStop={() => effectiveId && onStop(effectiveId)}
-            onDelete={() => {
-              if (selectedTask) {
-                onDelete(selectedTask.task.id, selectedTask.task.name);
-                setSelectedId(null);
-              }
-            }}
-          />
-        ) : null}
-      </div>
-    </div>
+      {isNewTask && (
+        <NewTaskModal
+          onSave={onSave}
+          onClose={() => onNewTaskChange(false)}
+        />
+      )}
+    </>
   );
 }

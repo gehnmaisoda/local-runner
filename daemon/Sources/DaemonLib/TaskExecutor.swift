@@ -13,7 +13,8 @@ public final class TaskExecutor: @unchecked Sendable {
     public init() {}
 
     /// タスクを実行し、完了した ExecutionRecord を返す。
-    public func execute(_ task: TaskDefinition) -> ExecutionRecord {
+    /// `defaultTimeout` はタスク個別のタイムアウトが未設定の場合のフォールバック。
+    public func execute(_ task: TaskDefinition, defaultTimeout: Int? = nil) -> ExecutionRecord {
         var record = ExecutionRecord(
             taskId: task.id,
             taskName: task.name,
@@ -25,7 +26,9 @@ public final class TaskExecutor: @unchecked Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-l", "-c", task.command]
+        // set -e: 途中のコマンドが失敗したら即終了
+        // set -o pipefail: パイプライン中の失敗も検知
+        process.arguments = ["-l", "-c", "set -eo pipefail\n" + task.command]
 
         let dir = task.workingDirectory ?? "~"
         let expandedDir = NSString(string: dir).expandingTildeInPath
@@ -49,7 +52,8 @@ public final class TaskExecutor: @unchecked Sendable {
             try process.run()
 
             var timedOut = false
-            if let timeout = task.timeout, timeout > 0 {
+            let effectiveTimeout = task.timeout ?? defaultTimeout
+            if let timeout = effectiveTimeout, timeout > 0 {
                 timedOut = waitWithTimeout(process: process, timeout: TimeInterval(timeout))
             } else {
                 process.waitUntilExit()

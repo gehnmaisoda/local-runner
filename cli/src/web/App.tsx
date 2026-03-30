@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { useTasks, useTimeline, useWebSocket, runTask, stopTask, saveTask, deleteTask } from "./hooks.ts";
+import { useTasks, useTimeline, useWebSocket, useSettings, runTask, stopTask, saveTask, deleteTask, updateSettings } from "./hooks.ts";
 import { TasksView } from "./TasksView.tsx";
 import { TimelineView } from "./TimelineView.tsx";
+import { SettingsView } from "./SettingsView.tsx";
 import { ToastContainer } from "./Toast.tsx";
 import type { TaskDefinition } from "./types.ts";
 
-type Tab = "tasks" | "timeline";
+type Tab = "tasks" | "timeline" | "settings";
 
 function DisconnectedView({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
   return (
@@ -38,6 +39,8 @@ export function App() {
   const [tab, setTab] = useState<Tab>("tasks");
   const { tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useTasks();
   const { history, reload: reloadTimeline } = useTimeline();
+  const { settings, loading: settingsLoading, reload: reloadSettings } = useSettings();
+  const [isNewTask, setIsNewTask] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
   const handleMessage = useCallback(() => {
@@ -95,25 +98,43 @@ export function App() {
           <DisconnectedView onRetry={handleRetry} retrying={retrying} />
         ) : (
           <>
-            <div className="tabs">
-              <button
-                className={`tab ${tab === "tasks" ? "active" : ""}`}
-                onClick={() => setTab("tasks")}
-              >
-                タスク
-              </button>
-              <button
-                className={`tab ${tab === "timeline" ? "active" : ""}`}
-                onClick={() => setTab("timeline")}
-              >
-                実行ログ
-              </button>
+            <div className="tabs-toolbar">
+              <div className="tabs">
+                <button
+                  className={`tab ${tab === "tasks" ? "active" : ""}`}
+                  onClick={() => setTab("tasks")}
+                >
+                  タスク
+                </button>
+                <button
+                  className={`tab ${tab === "timeline" ? "active" : ""}`}
+                  onClick={() => setTab("timeline")}
+                >
+                  実行ログ
+                </button>
+                <button
+                  className={`tab ${tab === "settings" ? "active" : ""}`}
+                  onClick={() => setTab("settings")}
+                >
+                  設定
+                </button>
+              </div>
+              {tab === "tasks" && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => { setIsNewTask(true); }}
+                >
+                  + 新規タスク
+                </button>
+              )}
             </div>
 
             {tab === "tasks" && (
               <TasksView
                 tasks={tasks}
                 loading={tasksLoading}
+                isNewTask={isNewTask}
+                onNewTaskChange={setIsNewTask}
                 onRun={handleRun}
                 onStop={handleStop}
                 onSave={handleSave}
@@ -121,6 +142,17 @@ export function App() {
               />
             )}
             {tab === "timeline" && <TimelineView history={history} />}
+            {tab === "settings" && (
+              <SettingsView
+                settings={settings}
+                loading={settingsLoading}
+                onSave={async (s) => {
+                  const ok = await updateSettings(s);
+                  if (ok) reloadSettings();
+                  return ok;
+                }}
+              />
+            )}
           </>
         )}
       </main>

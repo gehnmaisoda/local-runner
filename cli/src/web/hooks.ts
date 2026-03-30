@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { TaskStatus, ExecutionRecord, TaskDefinition } from "./types.ts";
+import type { TaskStatus, ExecutionRecord, TaskDefinition, GlobalSettings } from "./types.ts";
 import { formatCountdown } from "./format.ts";
 
 export function useTasks() {
@@ -173,5 +173,41 @@ export async function deleteTask(id: string) {
     await apiCall(`/api/tasks/${id}`, { method: "DELETE" });
   } catch (e: unknown) {
     showError(`タスクの削除に失敗: ${errorMessage(e)}`);
+  }
+}
+
+export function useSettings() {
+  const [settings, setSettings] = useState<GlobalSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSettings(data.settings ?? {});
+    } catch {
+      // エラー時は既存を維持
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { settings, loading, reload: load };
+}
+
+export async function updateSettings(settings: GlobalSettings): Promise<boolean> {
+  try {
+    await apiCall("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    return true;
+  } catch (e: unknown) {
+    showError(`設定の保存に失敗: ${errorMessage(e)}`);
+    return false;
   }
 }

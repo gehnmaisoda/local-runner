@@ -126,6 +126,12 @@ async function handleAPI(req: Request): Promise<Response> {
       return Response.json(res);
     }
 
+    if (path === "/api/settings" && req.method === "POST") {
+      const body = await req.json();
+      const res = await sendToIPC({ action: "update_settings", settings: body });
+      return Response.json(res);
+    }
+
     return Response.json({ error: "見つかりません" }, { status: 404 });
   } catch (err) {
     return Response.json(

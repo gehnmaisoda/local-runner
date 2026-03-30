@@ -1,4 +1,4 @@
-import { IPCClient, getSocketPath, type IPCNotification } from "./ipc.ts";
+import { IPCClient, getSocketPath, type IPCNotification, type IPCRequest, type IPCResponse } from "./ipc.ts";
 import { existsSync, statSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
@@ -17,15 +17,42 @@ type ServerWebSocket<T> = {
 
 async function ensureIPC(): Promise<IPCClient> {
   if (ipcClient?.connected) return ipcClient;
-  ipcClient = new IPCClient();
-  await ipcClient.connect();
-  ipcClient.subscribe((notification: IPCNotification) => {
+  const wasReconnect = ipcClient !== null;
+  const client = new IPCClient();
+  try {
+    await client.connect();
+  } catch (err) {
+    ipcClient = null;
+    throw err;
+  }
+  ipcClient = client;
+  client.subscribe((notification: IPCNotification) => {
     const msg = JSON.stringify({ type: "notification", ...notification });
     for (const ws of wsClients) {
       ws.send(msg);
     }
   });
-  return ipcClient;
+  // 再接続時、既存のWSクライアントにリフレッシュを通知
+  if (wasReconnect && wsClients.size > 0) {
+    const refreshMsg = JSON.stringify({ type: "notification", event: "reconnected" });
+    for (const ws of wsClients) {
+      ws.send(refreshMsg);
+    }
+  }
+  return client;
+}
+
+async function sendToIPC(request: IPCRequest): Promise<IPCResponse> {
+  try {
+    const client = await ensureIPC();
+    return await client.send(request);
+  } catch {
+    // 接続が切れていた可能性 — リセットして1回リトライ
+    ipcClient?.close();
+    ipcClient = null;
+    const client = await ensureIPC();
+    return await client.send(request);
+  }
 }
 
 // --- API handlers ---
@@ -53,17 +80,15 @@ async function handleAPI(req: Request): Promise<Response> {
   }
 
   try {
-    const client = await ensureIPC();
-
     if (path === "/api/tasks" && req.method === "GET") {
-      const res = await client.send({ action: "list_tasks" });
+      const res = await sendToIPC({ action: "list_tasks" });
       return Response.json(res);
     }
 
     if (path === "/api/history" && req.method === "GET") {
       const taskId = url.searchParams.get("taskId") ?? undefined;
       const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
-      const res = await client.send({ action: "get_history", taskId, limit });
+      const res = await sendToIPC({ action: "get_history", taskId, limit });
       return Response.json(res);
     }
 
@@ -71,39 +96,38 @@ async function handleAPI(req: Request): Promise<Response> {
       const taskId = path.split("/")[3];
       const action = path.split("/")[4]; // run, stop, toggle
       if (action === "run") {
-        const res = await client.send({ action: "run_task", taskId });
+        const res = await sendToIPC({ action: "run_task", taskId });
         return Response.json(res);
       }
       if (action === "stop") {
-        const res = await client.send({ action: "stop_task", taskId });
+        const res = await sendToIPC({ action: "stop_task", taskId });
         return Response.json(res);
       }
       if (action === "toggle") {
-        const res = await client.send({ action: "toggle_task", taskId });
+        const res = await sendToIPC({ action: "toggle_task", taskId });
         return Response.json(res);
       }
     }
 
     if (path === "/api/tasks" && req.method === "POST") {
       const body = await req.json();
-      const res = await client.send({ action: "save_task", task: body });
+      const res = await sendToIPC({ action: "save_task", task: body });
       return Response.json(res);
     }
 
     if (path.startsWith("/api/tasks/") && req.method === "DELETE") {
       const taskId = path.split("/")[3];
-      const res = await client.send({ action: "delete_task", taskId });
+      const res = await sendToIPC({ action: "delete_task", taskId });
       return Response.json(res);
     }
 
     if (path === "/api/settings" && req.method === "GET") {
-      const res = await client.send({ action: "get_settings" });
+      const res = await sendToIPC({ action: "get_settings" });
       return Response.json(res);
     }
 
     return Response.json({ error: "見つかりません" }, { status: 404 });
   } catch (err) {
-    ipcClient = null;
     return Response.json(
       { error: `デーモンへの接続に失敗: ${err}` },
       { status: 502 }

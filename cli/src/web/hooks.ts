@@ -5,14 +5,22 @@ import { formatCountdown } from "./format.ts";
 export function useTasks() {
   const [tasks, setTasks] = useState<TaskStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (retry = true) => {
     try {
       const res = await fetch("/api/tasks");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTasks(data.tasks ?? []);
+      setError(false);
     } catch {
-      // ignore
+      setError(true);
+      // エラー時は既存のタスクを維持（初回ロードなら空のまま）
+      // 1回だけリトライ
+      if (retry) {
+        setTimeout(() => load(false), 2000);
+      }
     } finally {
       setLoading(false);
     }
@@ -20,7 +28,7 @@ export function useTasks() {
 
   useEffect(() => { load(); }, [load]);
 
-  return { tasks, loading, reload: load };
+  return { tasks, loading, error, reload: load };
 }
 
 export function useTimeline(limit = 50) {
@@ -30,10 +38,11 @@ export function useTimeline(limit = 50) {
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/history?limit=${limit}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setHistory(data.history ?? []);
     } catch {
-      // ignore
+      // エラー時は既存のhistoryを維持
     } finally {
       setLoading(false);
     }

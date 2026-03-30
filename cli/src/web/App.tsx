@@ -33,7 +33,7 @@ export function App() {
     return ok;
   };
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`タスク "${name}" を削除しますか？`)) return;
+    if (!confirm(`タスク "${name}" を削除しますか？\n\n実行ログもすべて削除されます。`)) return;
     await deleteTask(id);
     reloadTasks();
   };

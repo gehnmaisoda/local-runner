@@ -21,13 +21,13 @@ let wakeDetector = WakeDetector { lastAwake in
 
 // 起動時ギャップ検出（デーモン再起動・長時間停止への対応）
 if let gapStart = wakeDetector.detectStartupGap() {
-    print("[local-runner] 起動時ギャップを検出。キャッチアップを実行します")
+    Log.info("main", "起動時ギャップを検出 (最終稼働: \(Log.formatDate(gapStart)))。キャッチアップを実行します")
     scheduler.handleWake(lastSleepDate: gapStart)
 }
 
 wakeDetector.start()
 
-print("[local-runner] 起動しました (PID: \(ProcessInfo.processInfo.processIdentifier))")
+Log.info("main", "起動しました (PID: \(ProcessInfo.processInfo.processIdentifier))")
 
 // プロセスを維持（RunLoop で Timer を駆動する）
 RunLoop.main.run()

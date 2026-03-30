@@ -21,7 +21,7 @@ final class SlackNotifier: @unchecked Sendable {
             ":x: *タスク実行失敗: \(escapeSlack(task.name))*",
             "• コマンド: `\(escapeSlack(task.command))`",
             "• 終了コード: \(record.exitCode ?? -1)",
-            "• 時刻: \(formatDate(record.startedAt))",
+            "• 時刻: \(Log.formatDate(record.startedAt))",
             "• 実行時間: \(record.durationText)",
         ].joined(separator: "\n")
 
@@ -48,16 +48,11 @@ final class SlackNotifier: @unchecked Sendable {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error {
-                print("[Slack] 送信失敗: \(error.localizedDescription)")
+                Log.info("Slack", "送信失敗: \(error.localizedDescription)")
             } else if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                print("[Slack] 予期しないステータス: \(http.statusCode)")
+                Log.info("Slack", "予期しないステータス: \(http.statusCode)")
             }
         }.resume()
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return fmt.string(from: date)
-    }
 }

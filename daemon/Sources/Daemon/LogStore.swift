@@ -43,6 +43,17 @@ final class LogStore: @unchecked Sendable {
         }
     }
 
+    /// 指定タスクの実行ログを全削除する。
+    func deleteHistory(taskId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        ensureLoaded()
+        cache.removeValue(forKey: taskId)
+        let url = directory.appendingPathComponent("\(taskId).json")
+        try? FileManager.default.removeItem(at: url)
+    }
+
     // MARK: - 読み取り
 
     /// 指定タスクの実行履歴を取得する。

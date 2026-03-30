@@ -4,6 +4,7 @@ DEV_FLAGS = -Xswiftc -DDEV
 
 # Run daemon in foreground (for development)
 daemon:
+	-@pkill -f 'local-runner$$' 2>/dev/null || true
 	cd daemon && swift build $(DEV_FLAGS)
 	daemon/.build/debug/local-runner
 

@@ -37,7 +37,7 @@ final class TaskExecutor: @unchecked Sendable {
         lock.withLock { runningProcesses[task.id] = process }
 
         defer {
-            lock.withLock { runningProcesses.removeValue(forKey: task.id) }
+            lock.withLock { _ = runningProcesses.removeValue(forKey: task.id) }
         }
 
         do {

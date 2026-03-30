@@ -21,7 +21,7 @@ final class WakeDetector: @unchecked Sendable {
         // 永続化されたスリープ状態を復元
         sleepStartedAt = loadSleepState()
         if let restored = sleepStartedAt {
-            print("[WakeDetector] 前回のスリープ状態を復元: \(restored)")
+            Log.info("Wake", "前回のスリープ状態を復元 (スリープ開始: \(Log.formatDate(restored)))")
         }
 
         // スリープ/復帰イベントの監視
@@ -30,13 +30,14 @@ final class WakeDetector: @unchecked Sendable {
             let now = Date()
             self?.sleepStartedAt = now
             self?.saveSleepState(now)
-            print("[WakeDetector] システムがスリープに入ります")
+            Log.info("Wake", "システムがスリープに入ります")
         }
         nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             guard let self, let sleepDate = self.sleepStartedAt else { return }
             self.sleepStartedAt = nil
             self.clearSleepState()
-            print("[WakeDetector] システムが復帰しました (\(sleepDate) からスリープ)")
+            let duration = Log.formatDuration(Date().timeIntervalSince(sleepDate))
+            Log.info("Wake", "システムが復帰しました (スリープ: \(Log.formatDate(sleepDate)) 〜 現在, \(duration))")
             self.onWake(sleepDate)
         }
 
@@ -72,7 +73,7 @@ final class WakeDetector: @unchecked Sendable {
 
         // Heartbeat 間隔の3倍以上のギャップがあれば、デーモンが停止していたと判断
         if gap > Self.heartbeatInterval * 3 {
-            print("[WakeDetector] 起動時ギャップを検出: 最終 heartbeat \(lastHeartbeat) (約\(Int(gap))秒前)")
+            Log.info("Wake", "起動時ギャップを検出: 最終 heartbeat \(Log.formatDate(lastHeartbeat)) (\(Log.formatDuration(gap))前)")
             return lastHeartbeat
         }
 

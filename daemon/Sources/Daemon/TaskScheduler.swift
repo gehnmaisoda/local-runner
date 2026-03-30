@@ -8,6 +8,7 @@ final class TaskScheduler: @unchecked Sendable {
     private let logStore: LogStore
     private let executor = TaskExecutor()
     private let slackNotifier = SlackNotifier()
+    var displayWakeState: DisplayWakeStateChecking = DisplayWakeState()
 
     private var tasks: [TaskDefinition] = []
     private var nextFireDates: [String: Date] = [:]
@@ -16,6 +17,7 @@ final class TaskScheduler: @unchecked Sendable {
     private var fileWatchTimer: Timer?
     private var lastDirModDate: Date = .distantPast
     private let lock = NSLock()
+    private var isDarkWakePaused = false
 
     /// IPC通知用コールバック
     var onNotification: ((IPCNotification) -> Void)?
@@ -35,7 +37,7 @@ final class TaskScheduler: @unchecked Sendable {
         let settings = loadSettings()
         slackNotifier.webhookURL = settings.slackWebhookURL
         let count = lock.withLock { tasks.count }
-        print("[Scheduler] \(count) 件のタスクで起動しました")
+        Log.info("Scheduler", "\(count) 件のタスクで起動しました")
     }
 
     func stop() {
@@ -53,7 +55,7 @@ final class TaskScheduler: @unchecked Sendable {
             tasks = loaded
             recalculateFireDatesLocked()
         }
-        print("[Scheduler] 再読み込み: \(loaded.count) 件のタスク")
+        Log.info("Scheduler", "再読み込み: \(loaded.count) 件のタスク")
     }
 
     func allTaskStatuses() -> [TaskStatus] {
@@ -72,7 +74,7 @@ final class TaskScheduler: @unchecked Sendable {
     func runTaskNow(_ taskId: String) {
         let task = lock.withLock { tasks.first { $0.id == taskId } }
         guard let task else {
-            print("[Scheduler] タスクが見つかりません: \(taskId)")
+            Log.info("Scheduler", "タスクが見つかりません: \(taskId)")
             return
         }
         executeTask(task)
@@ -103,7 +105,7 @@ final class TaskScheduler: @unchecked Sendable {
         do {
             try taskStore.save(task)
         } catch {
-            print("[Scheduler] タスク \(taskId) の切り替え保存に失敗: \(error)")
+            Log.info("Scheduler", "タスク \(taskId) の切り替え保存に失敗: \(error)")
         }
         onNotification?(.tasksChanged)
     }
@@ -116,6 +118,7 @@ final class TaskScheduler: @unchecked Sendable {
 
     func deleteTask(_ taskId: String) throws {
         try taskStore.delete(taskId)
+        logStore.deleteHistory(taskId: taskId)
         reloadTasks()
         onNotification?(.tasksChanged)
     }
@@ -124,11 +127,11 @@ final class TaskScheduler: @unchecked Sendable {
 
     func handleWake(lastSleepDate: Date) {
         let tasksSnapshot = lock.withLock { tasks }
-        print("[Scheduler] スリープ復帰を検知。\(lastSleepDate) 以降の未実行タスクを確認中...")
+        Log.info("Scheduler", "スリープ復帰を検知。\(Log.formatDate(lastSleepDate)) 以降の未実行タスクを確認中...")
         for task in tasksSnapshot where task.enabled && task.catchUp {
             if let nextFire = task.schedule.nextFireDate(after: lastSleepDate),
                nextFire < Date() {
-                print("[Scheduler] キャッチアップ: \(task.name)")
+                Log.info("Scheduler", "キャッチアップ実行: \(task.name)")
                 executeTask(task)
             }
         }
@@ -168,6 +171,18 @@ final class TaskScheduler: @unchecked Sendable {
     }
 
     private func checkSchedule() {
+        guard displayWakeState.shouldExecuteScheduledTasks() else {
+            if !isDarkWakePaused {
+                isDarkWakePaused = true
+                Log.info("Scheduler", "DarkWake検知: スケジュール実行を一時停止します")
+            }
+            return
+        }
+        if isDarkWakePaused {
+            isDarkWakePaused = false
+            Log.info("Scheduler", "ディスプレイ復帰: スケジュール実行を再開します")
+        }
+
         let (tasksSnapshot, fireDates) = lock.withLock { (tasks, nextFireDates) }
         let now = Date()
 
@@ -193,7 +208,7 @@ final class TaskScheduler: @unchecked Sendable {
     }
 
     private func executeTask(_ task: TaskDefinition) {
-        print("[Scheduler] 実行開始: \(task.name)")
+        Log.info("Scheduler", "実行開始: \(task.name)")
         onNotification?(.taskStarted(task.id))
 
         // running 状態の仮レコードを保存（UI に実行中表示用）
@@ -226,7 +241,8 @@ final class TaskScheduler: @unchecked Sendable {
                 self.slackNotifier.notifyFailure(task: task, record: finalRecord)
             }
 
-            print("[Scheduler] 完了: \(task.name) → \(finalRecord.status.rawValue)")
+            let duration = finalRecord.durationText
+            Log.info("Scheduler", "完了: \(task.name) → \(finalRecord.status.rawValue) (\(duration))")
         }
     }
 }

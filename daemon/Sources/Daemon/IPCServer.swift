@@ -30,7 +30,7 @@ final class IPCServer: @unchecked Sendable {
         // ソケット作成
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else {
-            print("[IPC] ソケット作成に失敗: \(String(cString: strerror(errno)))")
+            Log.info("IPC", "ソケット作成に失敗: \(String(cString: strerror(errno)))")
             return
         }
 
@@ -51,13 +51,13 @@ final class IPCServer: @unchecked Sendable {
             }
         }
         guard bindResult == 0 else {
-            print("[IPC] バインドに失敗: \(String(cString: strerror(errno)))")
+            Log.info("IPC", "バインドに失敗: \(String(cString: strerror(errno)))")
             return
         }
 
         // リッスン
         guard Darwin.listen(serverFD, 5) == 0 else {
-            print("[IPC] リッスンに失敗: \(String(cString: strerror(errno)))")
+            Log.info("IPC", "リッスンに失敗: \(String(cString: strerror(errno)))")
             return
         }
 
@@ -68,7 +68,7 @@ final class IPCServer: @unchecked Sendable {
 
         // 接続受付を開始
         acceptConnections()
-        print("[IPC] 待ち受け開始: \(socketPath)")
+        Log.info("IPC", "待ち受け開始: \(socketPath)")
     }
 
     // MARK: - 接続管理
@@ -82,7 +82,7 @@ final class IPCServer: @unchecked Sendable {
                 self.lock.unlock()
 
                 guard currentServerFD >= 0 else {
-                    print("[IPC] サーバーソケットが閉じられました。接続受付を終了します")
+                    Log.info("IPC", "サーバーソケットが閉じられました。接続受付を終了します")
                     return
                 }
 

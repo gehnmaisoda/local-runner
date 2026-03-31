@@ -60,6 +60,57 @@ struct TaskExecutorTimeoutTests {
         #expect(record.status == .failure)
         #expect(record.exitCode == 1)
     }
+
+    @Test("Multi-line command fails if any line fails (set -e)")
+    func multiLineFailsOnFirstError() {
+        let executor = TaskExecutor()
+        let task = makeTask(command: "exit 1\necho should-not-reach")
+        let record = executor.execute(task)
+        #expect(record.status == .failure)
+        #expect(record.exitCode == 1)
+        #expect(!record.stdout.contains("should-not-reach"))
+    }
+
+    @Test("Multi-line command succeeds only if all lines succeed")
+    func multiLineAllSuccess() {
+        let executor = TaskExecutor()
+        let task = makeTask(command: "echo line1\necho line2")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        #expect(record.stdout.contains("line1"))
+        #expect(record.stdout.contains("line2"))
+    }
+
+    @Test("Default timeout is used as fallback when task timeout is nil")
+    func defaultTimeoutFallback() {
+        let executor = TaskExecutor()
+        let task = makeTask(command: "sleep 60")
+        let start = Date()
+        let record = executor.execute(task, defaultTimeout: 1)
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(record.status == .timeout)
+        #expect(elapsed < 10)
+    }
+
+    @Test("Task-specific timeout takes priority over default timeout")
+    func taskTimeoutOverridesDefault() {
+        let executor = TaskExecutor()
+        let task = makeTask(command: "sleep 60", timeout: 1)
+        let start = Date()
+        // defaultTimeout is very long, but task timeout (1s) should win
+        let record = executor.execute(task, defaultTimeout: 300)
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(record.status == .timeout)
+        #expect(elapsed < 10)
+    }
+
+    @Test("Default timeout of 0 means no timeout for tasks without specific timeout")
+    func zeroDefaultTimeoutMeansNoLimit() {
+        let executor = TaskExecutor()
+        let task = makeTask(command: "echo quick")
+        let record = executor.execute(task, defaultTimeout: 0)
+        #expect(record.status == .success)
+    }
 }
 
 @Suite("TaskExecutor - stopAll")

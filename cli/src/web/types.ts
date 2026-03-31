@@ -41,3 +41,8 @@ export interface TaskStatus {
   nextRunAt?: string;
   isRunning: boolean;
 }
+
+export interface GlobalSettings {
+  slack_webhook_url?: string;
+  default_timeout?: number;
+}

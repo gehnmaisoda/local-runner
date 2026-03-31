@@ -19,6 +19,7 @@ public final class TaskScheduler: @unchecked Sendable {
     private let lock = NSLock()
     private var isDarkWakePaused = false
     private var isShuttingDown = false
+    private var cachedSettings = GlobalSettings()
 
     /// ネットワーク未接続時の保留キュー（タスクID → タスク定義 + プレースホルダーのレコードID）。
     /// 各タスクにつき最大1件保留。復帰時に同じレコードを更新する。
@@ -42,8 +43,9 @@ public final class TaskScheduler: @unchecked Sendable {
         reloadTasks()
         startScheduleTimer()
         startFileWatcher()
-        // 起動時に設定を読み込んで Slack URL をセット
+        // 起動時に設定を読み込んで反映
         let settings = loadSettings()
+        lock.withLock { cachedSettings = settings }
         slackNotifier.webhookURL = settings.slackWebhookURL
 
         // ネットワーク監視を起動
@@ -238,6 +240,7 @@ public final class TaskScheduler: @unchecked Sendable {
     public func saveSettings(_ settings: GlobalSettings) throws {
         let yaml = try YAMLEncoder().encode(settings)
         try yaml.write(to: ConfigPaths.settingsFile, atomically: true, encoding: .utf8)
+        lock.withLock { cachedSettings = settings }
         slackNotifier.webhookURL = settings.slackWebhookURL
     }
 
@@ -329,9 +332,10 @@ public final class TaskScheduler: @unchecked Sendable {
 
     /// タスクを非同期実行し、指定レコードIDで結果を更新する。
     private func runTask(_ task: TaskDefinition, recordId: UUID) {
+        let defaultTimeout = lock.withLock { cachedSettings.effectiveDefaultTimeout }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            let result = self.executor.execute(task)
+            let result = self.executor.execute(task, defaultTimeout: defaultTimeout)
             let finalRecord = ExecutionRecord(
                 id: recordId,
                 taskId: result.taskId,

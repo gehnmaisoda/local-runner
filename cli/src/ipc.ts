@@ -19,10 +19,12 @@ export interface TaskDefinition {
 
 export interface Schedule {
   type: string;
-  minute?: number;      // hourly: 0-59
-  time?: string;        // daily/weekly: "HH:mm"
-  weekday?: number;     // weekly: 1=Mon...7=Sun (ISO)
-  expression?: string;  // cron
+  minute?: number;        // hourly: 0-59
+  time?: string;          // daily/weekly/monthly: "HH:mm"
+  weekday?: number;       // weekly: 1=Mon...7=Sun (ISO) (legacy single)
+  weekdays?: number[];    // weekly: [1,3,5] = Mon/Wed/Fri
+  month_days?: number[];  // monthly: [-1, 1, 15]
+  expression?: string;    // cron
 }
 
 export interface ExecutionRecord {
@@ -46,6 +48,7 @@ export interface TaskStatus {
 
 export interface GlobalSettings {
   slack_webhook_url?: string;
+  default_timeout?: number;
 }
 
 export interface IPCRequest {
@@ -104,6 +107,7 @@ export class IPCClient {
     reject: (reason: unknown) => void;
   }> = [];
   private onNotification?: (notification: IPCNotification) => void;
+  public onDisconnect?: () => void;
 
   async connect(socketPath?: string): Promise<void> {
     const path = socketPath ?? getSocketPath();
@@ -126,6 +130,7 @@ export class IPCClient {
               p.reject(new Error("接続が切断されました"));
             }
             client.pending = [];
+            client.onDisconnect?.();
           },
           error(_socket, error) {
             if (client.socket === null) {
@@ -209,6 +214,10 @@ export class IPCClient {
     }
   }
 
+  onNotify(callback: (notification: IPCNotification) => void) {
+    this.onNotification = callback;
+  }
+
   close() {
     this.socket?.end();
     this.socket = null;
@@ -223,14 +232,6 @@ export class IPCClient {
 
 export async function createClient(): Promise<IPCClient> {
   const client = new IPCClient();
-  try {
-    await client.connect();
-  } catch {
-    console.error(
-      "デーモンへの接続に失敗しました。デーモンは起動していますか？\n" +
-        `  ソケット: ${getSocketPath()}`
-    );
-    process.exit(1);
-  }
+  await client.connect();
   return client;
 }

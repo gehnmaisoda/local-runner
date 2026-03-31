@@ -95,41 +95,52 @@ export async function uninstall() {
   console.log("デーモンをアンインストールしました。");
 }
 
-export async function doctor() {
-  console.log("=== LocalRunner 診断 ===\n");
+export async function doctor(json = false) {
+  type Check = { check: string; ok: boolean; detail: string };
+  const checks: Check[] = [];
+
+  if (!json) console.log("=== LocalRunner 診断 ===\n");
 
   // 1. デーモンバイナリ
   const daemonPath = findDaemonBinary();
   if (daemonPath) {
-    console.log(`[ok] デーモンバイナリ: ${daemonPath}`);
+    checks.push({ check: "daemon_binary", ok: true, detail: daemonPath });
+    if (!json) console.log(`[ok] デーモンバイナリ: ${daemonPath}`);
   } else {
-    console.log("[!!] デーモンバイナリが見つかりません。実行: cd daemon && swift build -c release");
+    checks.push({ check: "daemon_binary", ok: false, detail: "not found" });
+    if (!json) console.log("[!!] デーモンバイナリが見つかりません。実行: cd daemon && swift build -c release");
   }
 
   // 2. Plist 登録
   const plistExists = await Bun.file(PLIST_PATH).exists();
   if (plistExists) {
-    console.log(`[ok] LaunchAgent plist: ${PLIST_PATH}`);
+    checks.push({ check: "plist", ok: true, detail: PLIST_PATH });
+    if (!json) console.log(`[ok] LaunchAgent plist: ${PLIST_PATH}`);
   } else {
-    console.log(`[!!] LaunchAgent plist 未登録。実行: lr install`);
+    checks.push({ check: "plist", ok: false, detail: "not registered" });
+    if (!json) console.log(`[!!] LaunchAgent plist 未登録。実行: lr install`);
   }
 
   // 3. デーモンプロセス
   const ps = await Bun.$`launchctl list | grep ${LABEL}`.quiet().nothrow();
   const running = ps.exitCode === 0;
   if (running) {
-    console.log(`[ok] デーモンプロセス: 実行中`);
+    checks.push({ check: "process", ok: true, detail: "running" });
+    if (!json) console.log(`[ok] デーモンプロセス: 実行中`);
   } else {
-    console.log(`[!!] デーモンプロセス: 停止中`);
+    checks.push({ check: "process", ok: false, detail: "stopped" });
+    if (!json) console.log(`[!!] デーモンプロセス: 停止中`);
   }
 
   // 4. ソケット
   const socketPath = getSocketPath();
   const socketExists = await Bun.file(socketPath).exists();
   if (socketExists) {
-    console.log(`[ok] ソケット: ${socketPath}`);
+    checks.push({ check: "socket", ok: true, detail: socketPath });
+    if (!json) console.log(`[ok] ソケット: ${socketPath}`);
   } else {
-    console.log(`[!!] ソケットが見つかりません: ${socketPath}`);
+    checks.push({ check: "socket", ok: false, detail: socketPath });
+    if (!json) console.log(`[!!] ソケットが見つかりません: ${socketPath}`);
   }
 
   // 5. IPC 接続
@@ -141,12 +152,21 @@ export async function doctor() {
       const res = await client.send({ action: "list_tasks" });
       client.close();
       if (res.success) {
-        console.log(`[ok] IPC 接続: 正常 (${res.tasks?.length ?? 0} 件のタスク)`);
+        const count = res.tasks?.length ?? 0;
+        checks.push({ check: "ipc", ok: true, detail: `${count} tasks` });
+        if (!json) console.log(`[ok] IPC 接続: 正常 (${count} 件のタスク)`);
       } else {
-        console.log(`[!!] IPC 接続: エラー - ${res.error}`);
+        checks.push({ check: "ipc", ok: false, detail: res.error ?? "unknown error" });
+        if (!json) console.log(`[!!] IPC 接続: エラー - ${res.error}`);
       }
     } catch (e) {
-      console.log(`[!!] IPC 接続: 失敗 - ${e}`);
+      checks.push({ check: "ipc", ok: false, detail: String(e) });
+      if (!json) console.log(`[!!] IPC 接続: 失敗 - ${e}`);
     }
+  }
+
+  if (json) {
+    const allOk = checks.every(c => c.ok);
+    console.log(JSON.stringify({ success: allOk, checks }));
   }
 }

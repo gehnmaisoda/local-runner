@@ -8,12 +8,15 @@
   },
   "scripts": {
     "dev": "bun run index.ts",
-    "serve": "bun run index.ts serve"
+    "serve": "bun run index.ts serve",
+    "test": "bun test src/",
+    "test:e2e": "bunx playwright test"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.2.0",
     "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "@playwright/test": "^1.52.0"
   },
   "peerDependencies": {
     "typescript": "^5"

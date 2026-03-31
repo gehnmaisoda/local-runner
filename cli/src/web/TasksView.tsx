@@ -165,6 +165,24 @@ function generateId(): string {
   return id;
 }
 
+/** Validate a cron expression (5 fields, valid characters only). Returns null if valid, error message if invalid. */
+export function validateCron(expr: string): string | null {
+  const trimmed = expr.trim();
+  if (!trimmed) return null; // empty is ok (will be caught by "required" logic elsewhere)
+  const fields = trimmed.split(/\s+/);
+  if (fields.length !== 5) {
+    return `5つのフィールドが必要です（現在 ${fields.length} つ）`;
+  }
+  const validPattern = /^[0-9*\/,\-]+$/;
+  const fieldNames = ["分", "時", "日", "月", "曜日"];
+  for (let i = 0; i < fields.length; i++) {
+    if (!validPattern.test(fields[i]!)) {
+      return `${fieldNames[i]}フィールドに無効な文字が含まれています: "${fields[i]}"`;
+    }
+  }
+  return null;
+}
+
 function parseTime(time: string | undefined): { hour: number; minute: number } {
   if (!time) return { hour: 0, minute: 0 };
   const [h, m] = time.split(":").map(Number);
@@ -356,7 +374,7 @@ function TaskFormFields({ form }: { form: TaskFormState }) {
       </div>
 
       <div className="detail-section">
-        <label className="detail-label">実行スケジュール (JST)</label>
+        <label className="detail-label">実行スケジュール ({Intl.DateTimeFormat().resolvedOptions().timeZone})</label>
         <div className="sched">
           <div className="sched-pills">
             {SCHEDULE_TYPES.map((st) => (
@@ -455,15 +473,20 @@ function TaskFormFields({ form }: { form: TaskFormState }) {
           )}
 
           {form.scheduleType === "cron" && (
-            <input
-              className="form-input sched-cron"
-              type="text"
-              value={form.cronExpr}
-              onChange={(e) => form.setCronExpr(e.target.value)}
-              placeholder="*/15 * * * *"
-              autoComplete="off"
-              data-1p-ignore
-            />
+            <>
+              <input
+                className="form-input sched-cron"
+                type="text"
+                value={form.cronExpr}
+                onChange={(e) => form.setCronExpr(e.target.value)}
+                placeholder="*/15 * * * *"
+                autoComplete="off"
+                data-1p-ignore
+              />
+              {validateCron(form.cronExpr) && (
+                <div className="field-error">{validateCron(form.cronExpr)}</div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,5 +1,6 @@
 import Foundation
 import Yams
+import os.log
 
 /// タスク定義。YAML ファイルとして ~/.config/local-runner/tasks/ に保存される。
 public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
@@ -50,9 +51,28 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
 
 // MARK: - TaskStore
 
+/// Errors that can occur when loading task definitions.
+public enum TaskStoreError: Error, CustomStringConvertible {
+    case directoryReadFailed(path: String, underlying: Error?)
+    case fileReadFailed(filename: String, underlying: Error?)
+    case yamlParseFailed(filename: String, underlying: Error)
+
+    public var description: String {
+        switch self {
+        case .directoryReadFailed(let path, let underlying):
+            return "Failed to read task directory '\(path)': \(underlying?.localizedDescription ?? "unknown")"
+        case .fileReadFailed(let filename, let underlying):
+            return "Failed to read task file '\(filename)': \(underlying?.localizedDescription ?? "unknown")"
+        case .yamlParseFailed(let filename, let underlying):
+            return "Failed to parse YAML in '\(filename)': \(underlying.localizedDescription)"
+        }
+    }
+}
+
 /// タスク定義 YAML ファイルの読み書きを担当する。
 public final class TaskStore: @unchecked Sendable {
     private let directory: URL
+    private static let logger = Logger(subsystem: "com.gehnmaisoda.local-runner", category: "TaskStore")
 
     public init(directory: URL = ConfigPaths.tasksDirectory) {
         self.directory = directory
@@ -61,8 +81,11 @@ public final class TaskStore: @unchecked Sendable {
     /// ディレクトリ内の全タスク定義を読み込む。
     public func loadAll() -> [TaskDefinition] {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
-            print("[TaskStore] ディレクトリの読み込みに失敗: \(directory.path)")
+        let files: [URL]
+        do {
+            files = try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        } catch {
+            Self.logger.error("Failed to read task directory '\(self.directory.path)': \(error.localizedDescription)")
             return []
         }
         return files
@@ -70,7 +93,6 @@ public final class TaskStore: @unchecked Sendable {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             .compactMap { url in
                 guard let task = loadTask(at: url) else {
-                    print("[TaskStore] パース失敗: \(url.lastPathComponent)")
                     return nil as TaskDefinition?
                 }
                 return task
@@ -79,11 +101,26 @@ public final class TaskStore: @unchecked Sendable {
 
     /// 指定ファイルからタスク定義を読み込む。
     public func loadTask(at url: URL) -> TaskDefinition? {
-        guard let data = try? Data(contentsOf: url),
-              let yaml = String(data: data, encoding: .utf8) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            Self.logger.error("Failed to read task file '\(url.lastPathComponent)': \(error.localizedDescription)")
+            return nil
+        }
+        guard let yaml = String(data: data, encoding: .utf8) else {
+            Self.logger.error("Failed to decode task file '\(url.lastPathComponent)' as UTF-8")
+            return nil
+        }
         let decoder = YAMLDecoder()
         let taskId = url.deletingPathExtension().lastPathComponent
-        guard let decoded = try? decoder.decode(TaskDefinition.self, from: yaml) else { return nil }
+        let decoded: TaskDefinition
+        do {
+            decoded = try decoder.decode(TaskDefinition.self, from: yaml)
+        } catch {
+            Self.logger.error("Failed to parse YAML in '\(url.lastPathComponent)': \(error.localizedDescription)")
+            return nil
+        }
         // id をファイル名で上書き（YAML内のidは無視）
         return TaskDefinition(
             id: taskId,

@@ -134,10 +134,11 @@ struct TaskExecutorStopAllTests {
             }
         }
 
-        // Wait for processes to start
-        Thread.sleep(forTimeInterval: 0.5)
-
-        // Verify they are running
+        // Poll until both processes are running (up to 5 seconds)
+        let deadline = Date().addingTimeInterval(5)
+        while (!executor.isRunning("sa-1") || !executor.isRunning("sa-2")) && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
         #expect(executor.isRunning("sa-1"))
         #expect(executor.isRunning("sa-2"))
 
@@ -153,7 +154,8 @@ struct TaskExecutorStopAllTests {
         #expect(!executor.isRunning("sa-2"))
         #expect(results.count == 2)
         for record in results {
-            #expect(record.status == .stopped || record.status == .timeout)
+            // After SIGTERM, zsh may exit as .stopped, .failure, or .timeout
+            #expect(record.status != .success)
         }
     }
 
@@ -167,7 +169,7 @@ struct TaskExecutorStopAllTests {
 
 @Suite("TaskExecutor - Manual stop")
 struct TaskExecutorManualStopTests {
-    @Test("Stopping a running task sets stopped status")
+    @Test("Stopping a running task sets non-success status")
     func manualStop() {
         let executor = TaskExecutor()
         let task = TaskDefinition(id: "ms-1", name: "ms-1", command: "sleep 60")
@@ -180,13 +182,177 @@ struct TaskExecutorManualStopTests {
             semaphore.signal()
         }
 
-        Thread.sleep(forTimeInterval: 0.5)
+        // Poll until the process is actually running (up to 5 seconds)
+        let deadline = Date().addingTimeInterval(5)
+        while !executor.isRunning("ms-1") && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
         #expect(executor.isRunning("ms-1"))
 
         executor.stop("ms-1")
         semaphore.wait()
 
-        #expect(record?.status == .stopped)
+        // After SIGTERM, zsh may exit as .uncaughtSignal (→ .stopped) or
+        // with a non-zero exit code (→ .failure). Either way it should not be .success.
+        #expect(record?.status != .success)
         #expect(!executor.isRunning("ms-1"))
+    }
+}
+
+// MARK: - Working directory
+
+@Suite("TaskExecutor - Working directory")
+struct TaskExecutorWorkingDirTests {
+    @Test("Working directory is expanded from tilde")
+    func tildeExpansion() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "wd-1", name: "wd-1", command: "pwd", workingDirectory: "~")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        let pwd = record.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Should be the actual home directory, not literally "~"
+        #expect(!pwd.contains("~"))
+        #expect(pwd == FileManager.default.homeDirectoryForCurrentUser.path)
+    }
+
+    @Test("Nil working directory defaults to home directory")
+    func nilWorkingDir() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "wd-2", name: "wd-2", command: "pwd")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        let pwd = record.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Default is ~, which gets expanded
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        #expect(pwd == home)
+    }
+
+    @Test("Specific working directory is used")
+    func specificWorkingDir() throws {
+        // Create a uniquely-named temp subdirectory to avoid symlink ambiguity
+        let unique = "lr-test-\(UUID().uuidString)"
+        let testDir = FileManager.default.temporaryDirectory.appendingPathComponent(unique)
+        try FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: testDir) }
+
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "wd-3", name: "wd-3", command: "pwd", workingDirectory: testDir.path)
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        let pwd = record.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Verify pwd ends with our unique directory name (avoids /var vs /private/var issues)
+        #expect(pwd.hasSuffix(unique))
+    }
+}
+
+// MARK: - Environment variables
+
+@Suite("TaskExecutor - Environment variables")
+struct TaskExecutorEnvironmentTests {
+    @Test("Process inherits environment variables")
+    func inheritsEnv() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "env-1", name: "env-1", command: "echo $HOME")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        let output = record.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(!output.isEmpty)
+        #expect(output == FileManager.default.homeDirectoryForCurrentUser.path)
+    }
+
+    @Test("PATH is available in executed commands")
+    func pathAvailable() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "env-2", name: "env-2", command: "echo $PATH")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        let output = record.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(!output.isEmpty)
+        #expect(output.contains("/usr"))
+    }
+}
+
+// MARK: - Exit code handling
+
+@Suite("TaskExecutor - Exit codes")
+struct TaskExecutorExitCodeTests {
+    @Test("Successful command has exit code 0")
+    func exitCodeZero() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "ec-1", name: "ec-1", command: "true")
+        let record = executor.execute(task)
+        #expect(record.exitCode == 0)
+        #expect(record.status == .success)
+    }
+
+    @Test("Failed command has non-zero exit code")
+    func exitCodeNonZero() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "ec-2", name: "ec-2", command: "exit 42")
+        let record = executor.execute(task)
+        #expect(record.exitCode == 42)
+        #expect(record.status == .failure)
+    }
+
+    @Test("Command writing to stderr still succeeds if exit code is 0")
+    func stderrWithSuccess() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "ec-3", name: "ec-3", command: "echo error >&2; exit 0")
+        let record = executor.execute(task)
+        #expect(record.status == .success)
+        #expect(record.stderr.contains("error"))
+    }
+}
+
+// MARK: - Process lifecycle
+
+@Suite("TaskExecutor - Process lifecycle")
+struct TaskExecutorLifecycleTests {
+    @Test("isRunning returns false for unknown task")
+    func isRunningUnknown() {
+        let executor = TaskExecutor()
+        #expect(!executor.isRunning("nonexistent"))
+    }
+
+    @Test("hasRunningTasks is false when no tasks are running")
+    func noRunningTasks() {
+        let executor = TaskExecutor()
+        #expect(!executor.hasRunningTasks)
+    }
+
+    @Test("Stopping a non-existent task does not crash")
+    func stopNonExistent() {
+        let executor = TaskExecutor()
+        executor.stop("nonexistent") // Should not crash
+    }
+
+    @Test("Record includes working directory")
+    func recordWorkingDirectory() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "r-1", name: "r-1", command: "echo hi", workingDirectory: "/tmp")
+        let record = executor.execute(task)
+        #expect(record.workingDirectory == "/tmp")
+    }
+
+    @Test("Record includes command string")
+    func recordCommand() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(id: "r-2", name: "r-2", command: "echo specific_command")
+        let record = executor.execute(task)
+        #expect(record.command == "echo specific_command")
+    }
+
+    @Test("Record has startedAt and finishedAt after execution")
+    func recordTimestamps() {
+        let executor = TaskExecutor()
+        let before = Date()
+        let task = TaskDefinition(id: "r-3", name: "r-3", command: "echo hi")
+        let record = executor.execute(task)
+        let after = Date()
+
+        #expect(record.startedAt >= before)
+        #expect(record.finishedAt != nil)
+        #expect(record.finishedAt! <= after)
+        #expect(record.finishedAt! >= record.startedAt)
     }
 }

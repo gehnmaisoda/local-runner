@@ -9,5 +9,8 @@ cli/bun.lock
 # macOS
 .DS_Store
 
+# Test results
+test-results/
+
 # Claude
 .claude/

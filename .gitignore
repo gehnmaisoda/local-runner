@@ -13,4 +13,4 @@ cli/bun.lock
 test-results/
 
 # Claude
-.claude/
+.claude/settings.local.json

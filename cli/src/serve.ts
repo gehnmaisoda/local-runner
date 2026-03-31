@@ -4,6 +4,18 @@ import { homedir } from "os";
 import { resolve } from "path";
 import index from "./web/index.html";
 
+/** Parse JSON body from request, returning a 400 Response on failure. */
+async function parseJsonBody(req: Request): Promise<unknown | Response> {
+  try {
+    return await req.json();
+  } catch {
+    return Response.json(
+      { error: "不正なJSON形式です。リクエストボディを確認してください。" },
+      { status: 400 }
+    );
+  }
+}
+
 // --- IPC connection with auto-reconnect ---
 
 let ipcClient: IPCClient | null = null;
@@ -110,7 +122,8 @@ async function handleAPI(req: Request): Promise<Response> {
     }
 
     if (path === "/api/tasks" && req.method === "POST") {
-      const body = await req.json();
+      const body = await parseJsonBody(req);
+      if (body instanceof Response) return body;
       const res = await sendToIPC({ action: "save_task", task: body });
       return Response.json(res);
     }
@@ -127,7 +140,8 @@ async function handleAPI(req: Request): Promise<Response> {
     }
 
     if (path === "/api/settings" && req.method === "POST") {
-      const body = await req.json();
+      const body = await parseJsonBody(req);
+      if (body instanceof Response) return body;
       const res = await sendToIPC({ action: "update_settings", settings: body });
       return Response.json(res);
     }

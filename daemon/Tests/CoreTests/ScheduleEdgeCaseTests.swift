@@ -200,13 +200,12 @@ struct MonthlyScheduleTests {
 
 @Suite("Schedule time parsing edge cases")
 struct ParseTimeTests {
-    @Test("Malformed time 25:00 resolves to some date without crash")
+    @Test("Malformed time 25:00 returns nil (invalid hour)")
     func invalidHour() {
-        // parseTime returns (25, 0) → Calendar may clamp or overflow
         let schedule = Schedule.daily(time: "25:00")
         let from = date(2026, 3, 26, 10, 0)
-        // Should not crash — just verify no fatal error
-        let _ = schedule.nextFireDate(after: from)
+        // parseTime now validates: hour 25 is out of range → returns nil
+        #expect(schedule.nextFireDate(after: from) == nil)
     }
 
     @Test("Missing colon defaults to hour only")
@@ -231,14 +230,105 @@ struct ParseTimeTests {
         #expect(cal.component(.minute, from: next!) == 0)
     }
 
-    @Test("Non-numeric time defaults to 0:0")
+    @Test("Non-numeric time defaults to 0:0 which is valid")
     func nonNumericTime() {
         let schedule = Schedule.daily(time: "abc:def")
         let from = date(2026, 3, 26, 10, 0)
         let next = schedule.nextFireDate(after: from)
+        // Int("abc") → nil → 0, Int("def") → nil → 0 → (0, 0) is valid
         #expect(next != nil)
-        // Int("abc") → nil → 0, Int("def") → nil → 0
         #expect(cal.component(.hour, from: next!) == 0)
         #expect(cal.component(.minute, from: next!) == 0)
+    }
+}
+
+// MARK: - parseTime validation
+
+@Suite("Schedule.parseTime validation")
+struct ParseTimeValidationTests {
+
+    @Test("Valid time 00:00 returns (0, 0)")
+    func validMidnight() {
+        let result = Schedule.parseTime("00:00")
+        #expect(result != nil)
+        #expect(result?.hour == 0)
+        #expect(result?.minute == 0)
+    }
+
+    @Test("Valid time 23:59 returns (23, 59)")
+    func validMaxTime() {
+        let result = Schedule.parseTime("23:59")
+        #expect(result != nil)
+        #expect(result?.hour == 23)
+        #expect(result?.minute == 59)
+    }
+
+    @Test("Valid time 12:30 returns (12, 30)")
+    func validNoonish() {
+        let result = Schedule.parseTime("12:30")
+        #expect(result != nil)
+        #expect(result?.hour == 12)
+        #expect(result?.minute == 30)
+    }
+
+    @Test("Invalid time 25:99 returns nil")
+    func invalidTime2599() {
+        let result = Schedule.parseTime("25:99")
+        #expect(result == nil)
+    }
+
+    @Test("Invalid time 24:00 returns nil (hour out of range)")
+    func invalidTime2400() {
+        let result = Schedule.parseTime("24:00")
+        #expect(result == nil)
+    }
+
+    @Test("Invalid time 00:60 returns nil (minute out of range)")
+    func invalidTime0060() {
+        let result = Schedule.parseTime("00:60")
+        #expect(result == nil)
+    }
+
+    @Test("Invalid time -1:00 returns nil")
+    func invalidNegativeHour() {
+        // "-1" is parsed by Int() but -1 is out of 0-23 range
+        let result = Schedule.parseTime("-1:00")
+        #expect(result == nil)
+    }
+
+    @Test("Invalid time 00:-1 returns nil")
+    func invalidNegativeMinute() {
+        let result = Schedule.parseTime("00:-1")
+        #expect(result == nil)
+    }
+
+    @Test("Invalid time with garbage returns nil or valid defaults")
+    func garbageInput() {
+        // "abc" parses as hour=0, minute=0 which is actually valid
+        let result = Schedule.parseTime("abc")
+        #expect(result != nil)
+        #expect(result?.hour == 0)
+        #expect(result?.minute == 0)
+    }
+
+    @Test("Invalid time 25:00 causes daily schedule to return nil")
+    func invalidTimeCausesNilNextFire() {
+        let s = Schedule.daily(time: "25:00")
+        let from = date(2026, 3, 26, 10, 0)
+        #expect(s.nextFireDate(after: from) == nil)
+    }
+
+    @Test("Invalid time 12:99 causes weekly schedule to return nil")
+    func invalidTimeWeekly() {
+        let s = Schedule.weekly(weekday: 1, time: "12:99")
+        let from = date(2026, 3, 26, 10, 0)
+        #expect(s.nextFireDate(after: from) == nil)
+    }
+
+    @Test("Invalid time 30:00 causes monthly schedule to return nil")
+    func invalidTimeMonthly() {
+        let s = Schedule.monthly(days: [1], time: "30:00")
+        let from = date(2026, 3, 26, 10, 0)
+        #expect(s.nextFireDate(after: from) == nil)
     }
 }

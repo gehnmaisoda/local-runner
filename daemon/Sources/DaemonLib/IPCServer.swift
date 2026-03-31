@@ -16,6 +16,10 @@ public final class IPCServer: @unchecked Sendable {
     private let lock = NSLock()
     public private(set) var isShutdown = false
 
+    /// Shutdown wake pipe: writing to wakeWriteFD unblocks the accept loop.
+    private var wakeReadFD: Int32 = -1
+    private var wakeWriteFD: Int32 = -1
+
     public init(scheduler: TaskScheduler, logStore: LogStore, socketPath: String = ConfigPaths.socketPath) {
         self.scheduler = scheduler
         self.logStore = logStore
@@ -28,10 +32,23 @@ public final class IPCServer: @unchecked Sendable {
         // 既存ソケットファイルを削除
         unlink(socketPath)
 
+        // Create wake pipe for shutdown signaling
+        var pipeFDs: [Int32] = [0, 0]
+        guard pipe(&pipeFDs) == 0 else {
+            Log.info("IPC", "パイプ作成に失敗: \(String(cString: strerror(errno)))")
+            return
+        }
+        wakeReadFD = pipeFDs[0]
+        wakeWriteFD = pipeFDs[1]
+
         // ソケット作成
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else {
             Log.info("IPC", "ソケット作成に失敗: \(String(cString: strerror(errno)))")
+            close(wakeReadFD)
+            close(wakeWriteFD)
+            wakeReadFD = -1
+            wakeWriteFD = -1
             return
         }
 
@@ -77,6 +94,12 @@ public final class IPCServer: @unchecked Sendable {
         lock.lock()
         isShutdown = true
 
+        // Wake the accept loop so it can observe the shutdown flag
+        if wakeWriteFD >= 0 {
+            var byte: UInt8 = 1
+            _ = Darwin.write(wakeWriteFD, &byte, 1)
+        }
+
         // 全クライアント接続を閉じる
         let allFDs = clientFDs + subscriberFDs
         let uniqueFDs = Array(Set(allFDs))
@@ -91,6 +114,17 @@ public final class IPCServer: @unchecked Sendable {
             close(serverFD)
             serverFD = -1
         }
+
+        // Close wake pipe FDs
+        if wakeReadFD >= 0 {
+            close(wakeReadFD)
+            wakeReadFD = -1
+        }
+        if wakeWriteFD >= 0 {
+            close(wakeWriteFD)
+            wakeWriteFD = -1
+        }
+
         lock.unlock()
 
         // ソケットファイルを削除
@@ -107,12 +141,38 @@ public final class IPCServer: @unchecked Sendable {
                 self.lock.lock()
                 let shutdown = self.isShutdown
                 let currentServerFD = self.serverFD
+                let currentWakeReadFD = self.wakeReadFD
                 self.lock.unlock()
 
                 guard !shutdown, currentServerFD >= 0 else {
                     Log.info("IPC", "サーバーソケットが閉じられました。接続受付を終了します")
                     return
                 }
+
+                // Use poll() to wait on both the server socket and the wake pipe
+                var pollFDs: [pollfd] = [
+                    pollfd(fd: currentServerFD, events: Int16(POLLIN), revents: 0),
+                ]
+                if currentWakeReadFD >= 0 {
+                    pollFDs.append(pollfd(fd: currentWakeReadFD, events: Int16(POLLIN), revents: 0))
+                }
+                let pollResult = poll(&pollFDs, nfds_t(pollFDs.count), -1)
+
+                guard pollResult > 0 else {
+                    // poll interrupted or error
+                    if errno == EINTR { continue }
+                    Thread.sleep(forTimeInterval: 0.1)
+                    continue
+                }
+
+                // Check if wake pipe was signaled (shutdown)
+                if pollFDs.count > 1 && (pollFDs[1].revents & Int16(POLLIN)) != 0 {
+                    Log.info("IPC", "サーバーソケットが閉じられました。接続受付を終了します")
+                    return
+                }
+
+                // Check for new connection on the server socket
+                guard (pollFDs[0].revents & Int16(POLLIN)) != 0 else { continue }
 
                 var clientAddr = sockaddr_un()
                 var clientAddrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
@@ -122,8 +182,6 @@ public final class IPCServer: @unchecked Sendable {
                     }
                 }
                 guard clientFD >= 0 else {
-                    // accept が失敗した場合、短時間待って再試行
-                    Thread.sleep(forTimeInterval: 0.1)
                     continue
                 }
 

@@ -110,7 +110,7 @@ public struct Schedule: Codable, Sendable, Equatable {
             return next
 
         case .daily:
-            let (hour, min) = parseTime(time ?? "00:00")
+            guard let (hour, min) = Self.parseTime(time ?? "00:00") else { return nil }
             var comps = cal.dateComponents([.year, .month, .day], from: date)
             comps.hour = hour
             comps.minute = min
@@ -122,7 +122,7 @@ public struct Schedule: Codable, Sendable, Equatable {
             return next
 
         case .weekly:
-            let (hour, min) = parseTime(time ?? "00:00")
+            guard let (hour, min) = Self.parseTime(time ?? "00:00") else { return nil }
             let targets = effectiveWeekdays.map { isoWeekdayToCalendarWeekday($0) }
             var comps = cal.dateComponents([.year, .month, .day], from: date)
             comps.hour = hour
@@ -139,7 +139,7 @@ public struct Schedule: Codable, Sendable, Equatable {
             return nil
 
         case .monthly:
-            let (hour, min) = parseTime(time ?? "00:00")
+            guard let (hour, min) = Self.parseTime(time ?? "00:00") else { return nil }
             let days = (monthDays ?? [1]).filter { $0 == -1 || (1...31).contains($0) }
 
             var candidates: [Date] = []
@@ -179,10 +179,14 @@ public struct Schedule: Codable, Sendable, Equatable {
 
     // MARK: - Private
 
-    private func parseTime(_ time: String) -> (hour: Int, minute: Int) {
+    /// Parse a "HH:mm" time string. Returns nil if the time is invalid (hour not in 0-23, minute not in 0-59).
+    public static func parseTime(_ time: String) -> (hour: Int, minute: Int)? {
         let parts = time.split(separator: ":")
         let hour = parts.count > 0 ? Int(parts[0]) ?? 0 : 0
         let minute = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        guard (0...23).contains(hour), (0...59).contains(minute) else {
+            return nil
+        }
         return (hour, minute)
     }
 

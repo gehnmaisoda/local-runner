@@ -2,7 +2,7 @@ import { createClient, type IPCClient, type TaskStatus, type ExecutionRecord } f
 
 // --- Formatters ---
 
-function formatDate(iso: string | undefined): string {
+export function formatDate(iso: string | undefined): string {
   if (!iso) return "-";
   const d = new Date(iso);
   return d.toLocaleString("ja-JP", {
@@ -14,7 +14,7 @@ function formatDate(iso: string | undefined): string {
   });
 }
 
-function formatDuration(record: ExecutionRecord): string {
+export function formatDuration(record: ExecutionRecord): string {
   if (!record.finishedAt) return "-";
   const ms =
     new Date(record.finishedAt).getTime() -
@@ -26,7 +26,7 @@ function formatDuration(record: ExecutionRecord): string {
   return `${m}m${s}s`;
 }
 
-function statusIcon(status: TaskStatus): string {
+export function statusIcon(status: TaskStatus): string {
   if (status.isRunning) return "\u25B6"; // running
   if (!status.task.enabled) return "\u25CB"; // disabled
   if (status.lastRun?.status === "failure") return "\u2717"; // failed
@@ -35,7 +35,7 @@ function statusIcon(status: TaskStatus): string {
   return "\u25CB"; // no history
 }
 
-function pad(s: string, len: number): string {
+export function pad(s: string, len: number): string {
   return s.length >= len ? s.substring(0, len) : s + " ".repeat(len - s.length);
 }
 

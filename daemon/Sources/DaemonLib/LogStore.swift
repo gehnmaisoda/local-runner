@@ -7,6 +7,9 @@ public final class LogStore: @unchecked Sendable {
     private let directory: URL
     private let lock = NSLock()
 
+    /// Maximum number of records kept in cache per task (matches file trim limit).
+    static let maxCacheRecordsPerTask = 500
+
     /// タスクID → 実行履歴（メモリキャッシュ）
     private var cache: [String: [ExecutionRecord]] = [:]
     private var loaded = false
@@ -25,6 +28,10 @@ public final class LogStore: @unchecked Sendable {
         ensureLoaded()
         var records = cache[record.taskId] ?? []
         records.append(record)
+        // Trim cache to match the file trim limit
+        if records.count > Self.maxCacheRecordsPerTask {
+            records = Array(records.suffix(Self.maxCacheRecordsPerTask))
+        }
         cache[record.taskId] = records
         saveTaskLog(taskId: record.taskId, records: records)
     }

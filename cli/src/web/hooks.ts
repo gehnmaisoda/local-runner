@@ -58,20 +58,29 @@ export function useWebSocket(onMessage: () => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mountedRef = useRef(true);
+  const backoffRef = useRef(1000); // Start at 1 second
 
   useEffect(() => {
     mountedRef.current = true;
+    backoffRef.current = 1000;
 
     function connect() {
       if (!mountedRef.current) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${proto}//${location.host}/ws`);
 
-      ws.onopen = () => { if (mountedRef.current) setConnected(true); };
+      ws.onopen = () => {
+        if (mountedRef.current) {
+          setConnected(true);
+          backoffRef.current = 1000; // Reset backoff on successful connection
+        }
+      };
       ws.onclose = () => {
         if (!mountedRef.current) return;
         setConnected(false);
-        retryRef.current = setTimeout(connect, 3000);
+        const delay = backoffRef.current;
+        backoffRef.current = Math.min(delay * 2, 30000); // Exponential backoff, max 30s
+        retryRef.current = setTimeout(connect, delay);
       };
       ws.onmessage = () => { if (mountedRef.current) onMessage(); };
 

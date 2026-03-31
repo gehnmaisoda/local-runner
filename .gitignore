@@ -13,4 +13,5 @@ cli/bun.lock
 test-results/
 
 # Claude
-.claude/
+.claude/*
+!.claude/skills/

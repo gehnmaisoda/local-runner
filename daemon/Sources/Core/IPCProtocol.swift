@@ -51,19 +51,22 @@ public struct IPCResponse: Codable, Sendable {
     public var tasks: [TaskStatus]?
     public var history: [ExecutionRecord]?
     public var settings: GlobalSettings?
+    public var version: String?
 
     public init(
         success: Bool = true,
         error: String? = nil,
         tasks: [TaskStatus]? = nil,
         history: [ExecutionRecord]? = nil,
-        settings: GlobalSettings? = nil
+        settings: GlobalSettings? = nil,
+        version: String? = nil
     ) {
         self.success = success
         self.error = error
         self.tasks = tasks
         self.history = history
         self.settings = settings
+        self.version = version
     }
 
     public static var ok: Self { .init() }

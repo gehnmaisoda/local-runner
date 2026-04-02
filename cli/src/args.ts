@@ -5,12 +5,13 @@ export interface ParsedArgs {
 }
 
 const BOOLEAN_FLAGS = new Set([
-  "json", "wait", "yes", "help", "output",
+  "json", "wait", "yes", "help", "version", "output",
   "catch-up", "no-catch-up", "notify", "no-notify", "disabled",
 ]);
 
 const SHORT_FLAGS: Record<string, string> = {
   h: "help",
+  V: "version",
   y: "yes",
 };
 

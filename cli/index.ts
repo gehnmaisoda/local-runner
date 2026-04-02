@@ -9,6 +9,15 @@ import {
 } from "./src/commands.ts";
 import { startServer } from "./src/serve.ts";
 import { install, uninstall, doctor } from "./src/launchagent.ts";
+import { createClient } from "./src/ipc.ts";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+declare const __EMBEDDED_VERSION__: string | undefined;
+
+const CLI_VERSION = typeof __EMBEDDED_VERSION__ === "string"
+  ? __EMBEDDED_VERSION__
+  : readFileSync(resolve(import.meta.dir, "../VERSION"), "utf-8").trim();
 
 const args = parseArgs(process.argv.slice(2));
 const command = args.positionals[0];
@@ -214,6 +223,22 @@ function showHelp(cmd?: string) {
 }
 
 async function main() {
+  // Global --version
+  if (args.flags.has("version") && !command) {
+    console.log(`lr ${CLI_VERSION}`);
+    try {
+      const client = await createClient();
+      const res = await client.send({ action: "get_version" });
+      if (res.version) {
+        console.log(`local-runner-daemon ${res.version}`);
+      }
+      client.close();
+    } catch {
+      console.log("local-runner-daemon (未接続)");
+    }
+    process.exit(EXIT.SUCCESS);
+  }
+
   // Global --help
   if (args.flags.has("help") && !command) {
     showHelp();

@@ -1,10 +1,12 @@
 # Swift
 daemon/.build/
 daemon/Package.resolved
+daemon/Sources/Core/Version.swift
 
 # Bun
 cli/node_modules/
 cli/bun.lock
+cli/lr
 
 # macOS
 .DS_Store

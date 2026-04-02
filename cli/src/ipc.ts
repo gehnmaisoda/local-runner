@@ -65,6 +65,7 @@ export interface IPCResponse {
   tasks?: TaskStatus[];
   history?: ExecutionRecord[];
   settings?: GlobalSettings;
+  version?: string;
 }
 
 export interface IPCNotification {

@@ -1,9 +1,15 @@
+VERSION := $(shell cat VERSION)
 DEV_FLAGS = -Xswiftc -DDEV
 
-.PHONY: daemon web test clean install
+.PHONY: daemon web test clean install sync-version
+
+# Generate Version.swift from VERSION file
+sync-version:
+	@echo 'public enum AppVersion { public static let current = "$(VERSION)" }' \
+		> daemon/Sources/Core/Version.swift
 
 # Run daemon in foreground (for development)
-daemon:
+daemon: sync-version
 	-@pkill -f 'local-runner$$' 2>/dev/null || true
 	cd daemon && swift build $(DEV_FLAGS)
 	daemon/.build/debug/local-runner
@@ -13,12 +19,17 @@ web:
 	cd cli && LOCAL_RUNNER_DEV=1 bun run index.ts
 
 # Run tests
-test:
+test: sync-version
 	cd daemon && swift test
 
 # Build daemon release binary
-build:
+build: sync-version
 	cd daemon && swift build -c release
+
+# Build CLI single binary
+cli-build:
+	cd cli && bun build --compile index.ts --outfile lr \
+		--define '__EMBEDDED_VERSION__="$(VERSION)"'
 
 # Install daemon as LaunchAgent (requires release build)
 install: build
@@ -27,3 +38,4 @@ install: build
 # Clean build artifacts
 clean:
 	cd daemon && swift package clean
+	rm -f cli/lr

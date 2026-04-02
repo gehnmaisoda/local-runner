@@ -17,14 +17,30 @@ const LOG_DIR = join(
 );
 
 function findDaemonBinary(): string | null {
-  // Look for the daemon binary relative to this project
+  const candidates: string[] = [];
+
+  // 1. Homebrew prefix (brew install local-runner)
+  try {
+    const result = Bun.spawnSync(["brew", "--prefix", "local-runner"]);
+    if (result.exitCode === 0) {
+      const prefix = result.stdout.toString().trim();
+      candidates.push(join(prefix, "bin", "local-runner-daemon"));
+    }
+  } catch { /* brew not available */ }
+
+  // 2. Common Homebrew paths
+  candidates.push("/opt/homebrew/bin/local-runner-daemon");
+  candidates.push("/usr/local/bin/local-runner-daemon");
+
+  // 3. Development builds (relative to project)
   const projectRoot = resolve(import.meta.dir, "..", "..");
-  const candidates = [
-    join(projectRoot, "daemon", ".build", "release", "local-runner"),
-    join(projectRoot, "daemon", ".build", "debug", "local-runner"),
-  ];
+  candidates.push(join(projectRoot, "daemon", ".build", "release", "local-runner"));
+  candidates.push(join(projectRoot, "daemon", ".build", "debug", "local-runner"));
+
   for (const p of candidates) {
-    if (Bun.file(p).size > 0) return p;
+    try {
+      if (Bun.file(p).size > 0) return p;
+    } catch { /* file not accessible */ }
   }
   return null;
 }

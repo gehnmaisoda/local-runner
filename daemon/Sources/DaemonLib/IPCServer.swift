@@ -310,6 +310,9 @@ public final class IPCServer: @unchecked Sendable {
             scheduler.toggleTask(taskId)
             return .ok
 
+        case "get_version":
+            return IPCResponse(version: AppVersion.current)
+
         case "subscribe":
             lock.lock()
             subscriberFDs.append(clientFD)

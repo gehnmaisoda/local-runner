@@ -53,7 +53,7 @@ func installSignalHandler(signal sig: Int32) {
 installSignalHandler(signal: SIGTERM)
 installSignalHandler(signal: SIGINT)
 
-Log.info("main", "起動しました (PID: \(ProcessInfo.processInfo.processIdentifier))")
+Log.info("main", "起動しました v\(AppVersion.current) (PID: \(ProcessInfo.processInfo.processIdentifier))")
 
 // プロセスを維持（RunLoop で Timer を駆動する）
 RunLoop.main.run()

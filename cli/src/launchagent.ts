@@ -2,12 +2,13 @@ import { homedir } from "os";
 import { join, resolve } from "path";
 import { getSocketPath } from "./ipc.ts";
 
-const LABEL = "com.gehnmaisoda.local-runner.daemon";
+const isDev = process.env.LOCAL_RUNNER_DEV === "1";
+const LABEL = isDev
+  ? "com.gehnmaisoda.local-runner.daemon.dev"
+  : "com.gehnmaisoda.local-runner.daemon";
 const PLIST_FILENAME = `${LABEL}.plist`;
 const LAUNCH_AGENTS_DIR = join(homedir(), "Library", "LaunchAgents");
 const PLIST_PATH = join(LAUNCH_AGENTS_DIR, PLIST_FILENAME);
-
-const isDev = process.env.LOCAL_RUNNER_DEV === "1";
 const appName = isDev ? "LocalRunner-Dev" : "LocalRunner";
 const LOG_DIR = join(
   homedir(),

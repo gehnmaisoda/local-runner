@@ -1,7 +1,7 @@
 VERSION := $(shell cat VERSION)
 DEV_FLAGS = -Xswiftc -DDEV
 
-.PHONY: daemon web test clean install sync-version
+.PHONY: daemon web test clean install sync-version dist
 
 # Generate Version.swift from VERSION file
 sync-version:
@@ -30,6 +30,14 @@ build: sync-version
 cli-build:
 	cd cli && bun build --compile index.ts --outfile lr \
 		--define '__EMBEDDED_VERSION__="$(VERSION)"'
+
+# Build release archive for distribution
+dist: build cli-build
+	mkdir -p dist
+	cp daemon/.build/release/local-runner dist/local-runner-daemon
+	cp cli/lr dist/lr
+	cd dist && tar czf local-runner-$(VERSION)-arm64.tar.gz local-runner-daemon lr
+	@echo "Created dist/local-runner-$(VERSION)-arm64.tar.gz"
 
 # Install daemon as LaunchAgent (requires release build)
 install: build

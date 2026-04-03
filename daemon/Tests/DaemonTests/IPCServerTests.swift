@@ -79,6 +79,18 @@ struct IPCServerWireFormatTests {
         #expect(decoded.tasks?[0].task.id == "t1")
     }
 
+    @Test("IPCResponse with version encodes and decodes correctly")
+    func encodeVersionResponse() throws {
+        let response = IPCResponse(version: "0.1.0")
+        let data = try IPCWireFormat.encode(response)
+        var buffer = data
+        let json = IPCWireFormat.readMessage(from: &buffer)!
+        let decoded = try IPCWireFormat.decode(IPCResponse.self, from: json)
+        #expect(decoded.success == true)
+        #expect(decoded.version == "0.1.0")
+        #expect(decoded.tasks == nil)
+    }
+
     @Test("IPCResponse with history includes execution records")
     func encodeHistoryResponse() throws {
         let record = ExecutionRecord(taskId: "t1", taskName: "Test", status: .success)
@@ -217,6 +229,13 @@ struct IPCRequestFactoryTests {
         let req = IPCRequest.toggleTask("toggle-me")
         #expect(req.action == "toggle_task")
         #expect(req.taskId == "toggle-me")
+    }
+
+    @Test("getVersion creates correct action")
+    func getVersion() {
+        let req = IPCRequest.getVersion
+        #expect(req.action == "get_version")
+        #expect(req.taskId == nil)
     }
 
     @Test("subscribe creates correct action")

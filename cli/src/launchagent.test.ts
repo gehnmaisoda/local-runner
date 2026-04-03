@@ -9,22 +9,31 @@ import { homedir } from "os";
 // we test the observable behavior and path logic.
 
 describe("LaunchAgent paths", () => {
-  const LABEL = "com.gehnmaisoda.local-runner.daemon";
-  const PLIST_FILENAME = `${LABEL}.plist`;
+  const LABEL_PROD = "com.gehnmaisoda.local-runner.daemon";
+  const LABEL_DEV = "com.gehnmaisoda.local-runner.daemon.dev";
   const LAUNCH_AGENTS_DIR = join(homedir(), "Library", "LaunchAgents");
-  const PLIST_PATH = join(LAUNCH_AGENTS_DIR, PLIST_FILENAME);
 
-  test("label follows reverse-DNS convention", () => {
-    expect(LABEL).toMatch(/^com\.\w+\.\S+$/);
+  test("prod label follows reverse-DNS convention", () => {
+    expect(LABEL_PROD).toMatch(/^com\.\w+\.\S+$/);
+  });
+
+  test("dev label has .dev suffix", () => {
+    expect(LABEL_DEV).toBe(`${LABEL_PROD}.dev`);
+  });
+
+  test("dev and prod labels are different", () => {
+    expect(LABEL_DEV).not.toBe(LABEL_PROD);
   });
 
   test("plist filename matches label", () => {
-    expect(PLIST_FILENAME).toBe(`${LABEL}.plist`);
+    expect(`${LABEL_PROD}.plist`).toBe("com.gehnmaisoda.local-runner.daemon.plist");
+    expect(`${LABEL_DEV}.plist`).toBe("com.gehnmaisoda.local-runner.daemon.dev.plist");
   });
 
   test("plist path is in ~/Library/LaunchAgents", () => {
-    expect(PLIST_PATH).toBe(
-      join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`)
+    const plistPath = join(LAUNCH_AGENTS_DIR, `${LABEL_PROD}.plist`);
+    expect(plistPath).toBe(
+      join(homedir(), "Library", "LaunchAgents", `${LABEL_PROD}.plist`)
     );
   });
 

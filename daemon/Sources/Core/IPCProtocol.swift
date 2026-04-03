@@ -39,6 +39,7 @@ public struct IPCRequest: Codable, Sendable {
     public static func saveTask(_ t: TaskDefinition) -> Self { .init(action: "save_task", task: t) }
     public static func deleteTask(_ id: String) -> Self { .init(action: "delete_task", taskId: id) }
     public static func toggleTask(_ id: String) -> Self { .init(action: "toggle_task", taskId: id) }
+    public static var getVersion: Self { .init(action: "get_version") }
     public static var subscribe: Self { .init(action: "subscribe") }
 }
 

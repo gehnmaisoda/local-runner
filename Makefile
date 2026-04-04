@@ -34,7 +34,7 @@ cli-build:
 # Build release archive for distribution
 dist: build cli-build
 	mkdir -p dist/LocalRunner.app/Contents/MacOS
-	cp daemon/.build/release/local-runner dist/LocalRunner.app/Contents/MacOS/local-runner-daemon
+	cp daemon/.build/release/local-runner dist/LocalRunner.app/Contents/MacOS/local-runnerd
 	printf '<?xml version="1.0" encoding="UTF-8"?>\n\
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n\
 <plist version="1.0">\n\
@@ -48,7 +48,7 @@ dist: build cli-build
     <key>CFBundleVersion</key>\n\
     <string>$(VERSION)</string>\n\
     <key>CFBundleExecutable</key>\n\
-    <string>local-runner-daemon</string>\n\
+    <string>local-runnerd</string>\n\
     <key>LSBackgroundOnly</key>\n\
     <true/>\n\
 </dict>\n\

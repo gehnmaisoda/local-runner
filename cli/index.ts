@@ -230,11 +230,11 @@ async function main() {
       const client = await createClient();
       const res = await client.send({ action: "get_version" }, 1000);
       if (res.version) {
-        console.log(`local-runner-daemon ${res.version}`);
+        console.log(`local-runnerd ${res.version}`);
       }
       client.close();
     } catch {
-      console.log("local-runner-daemon (未接続)");
+      console.log("local-runnerd (未接続)");
     }
     process.exit(EXIT.SUCCESS);
   }

@@ -22,10 +22,10 @@ function findDaemonBinary(): string | null {
   // .app バンドル (Homebrew) → bare binary (Homebrew legacy) → dev builds の優先順で探索
   const projectRoot = resolve(import.meta.dir, "..", "..");
   const candidates = [
-    "/opt/homebrew/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runner-daemon",
-    "/usr/local/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runner-daemon",
-    "/opt/homebrew/bin/local-runner-daemon",
-    "/usr/local/bin/local-runner-daemon",
+    "/opt/homebrew/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runnerd",
+    "/usr/local/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runnerd",
+    "/opt/homebrew/bin/local-runnerd",
+    "/usr/local/bin/local-runnerd",
     join(projectRoot, "daemon", ".build", "release", "local-runner"),
     join(projectRoot, "daemon", ".build", "debug", "local-runner"),
   ];

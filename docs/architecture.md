@@ -6,7 +6,7 @@ LocalRunner は 2 つのプロセスで構成される。
 
 | プロセス | 言語 | 役割 |
 |:---|:---|:---|
-| `local-runner-daemon` | Swift | スケジューリング・タスク実行・ログ保存・通知 |
+| `local-runnerd` | Swift | スケジューリング・タスク実行・ログ保存・通知 |
 | `lr` | Bun / TypeScript | CLI 操作・Web UI 提供 |
 
 Daemon は LaunchAgent として常駐し、CLI / Web UI は必要なときだけ起動する。

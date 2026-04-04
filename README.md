@@ -56,7 +56,13 @@ lr logs hello --output
 
 ### Coding Agent から自然言語で操作する (推奨)
 
-LocalRunner の CLI は JSON 出力に対応しており、Claude Code / Codex / Cursor などの coding agent から自然言語でタスクを管理できる。Claude Code 向けには Skill (`/lr`) が付属している。
+LocalRunner の CLI は JSON 出力に対応しており、Claude Code / Codex / Cursor などの coding agent から自然言語でタスクを管理できる。
+
+Claude Code 向けには Skill (`/lr`) が付属しており、インストールするとどのプロジェクトからでも使える:
+
+```bash
+npx skills add gehnmaisoda/local-runner
+```
 
 ```
 You: 毎朝9時にprojectsフォルダでgit fetchを全リポジトリに実行するタスクを作って

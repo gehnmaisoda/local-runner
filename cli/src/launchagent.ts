@@ -19,9 +19,11 @@ const LOG_DIR = join(
 );
 
 function findDaemonBinary(): string | null {
-  // Homebrew (arm64 / Intel) → dev builds の優先順で探索
+  // .app バンドル (Homebrew) → bare binary (Homebrew legacy) → dev builds の優先順で探索
   const projectRoot = resolve(import.meta.dir, "..", "..");
   const candidates = [
+    "/opt/homebrew/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runner-daemon",
+    "/usr/local/opt/local-runner/LocalRunner.app/Contents/MacOS/local-runner-daemon",
     "/opt/homebrew/bin/local-runner-daemon",
     "/usr/local/bin/local-runner-daemon",
     join(projectRoot, "daemon", ".build", "release", "local-runner"),

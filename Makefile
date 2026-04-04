@@ -33,10 +33,28 @@ cli-build:
 
 # Build release archive for distribution
 dist: build cli-build
-	mkdir -p dist
-	cp daemon/.build/release/local-runner dist/local-runner-daemon
+	mkdir -p dist/LocalRunner.app/Contents/MacOS
+	cp daemon/.build/release/local-runner dist/LocalRunner.app/Contents/MacOS/local-runner-daemon
+	printf '<?xml version="1.0" encoding="UTF-8"?>\n\
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n\
+<plist version="1.0">\n\
+<dict>\n\
+    <key>CFBundleDisplayName</key>\n\
+    <string>Local Runner</string>\n\
+    <key>CFBundleName</key>\n\
+    <string>Local Runner</string>\n\
+    <key>CFBundleIdentifier</key>\n\
+    <string>com.gehnmaisoda.local-runner</string>\n\
+    <key>CFBundleVersion</key>\n\
+    <string>$(VERSION)</string>\n\
+    <key>CFBundleExecutable</key>\n\
+    <string>local-runner-daemon</string>\n\
+    <key>LSBackgroundOnly</key>\n\
+    <true/>\n\
+</dict>\n\
+</plist>' > dist/LocalRunner.app/Contents/Info.plist
 	cp cli/lr dist/lr
-	cd dist && tar czf local-runner-$(VERSION)-arm64.tar.gz local-runner-daemon lr
+	cd dist && tar czf local-runner-$(VERSION)-arm64.tar.gz LocalRunner.app lr
 	@echo "Created dist/local-runner-$(VERSION)-arm64.tar.gz"
 
 # Install daemon as LaunchAgent (requires release build)

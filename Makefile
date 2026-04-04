@@ -53,6 +53,7 @@ dist: build cli-build
     <true/>\n\
 </dict>\n\
 </plist>' > dist/LocalRunner.app/Contents/Info.plist
+	codesign --force --sign - dist/LocalRunner.app
 	cp cli/lr dist/lr
 	cd dist && tar czf local-runner-$(VERSION)-arm64.tar.gz LocalRunner.app lr
 	@echo "Created dist/local-runner-$(VERSION)-arm64.tar.gz"

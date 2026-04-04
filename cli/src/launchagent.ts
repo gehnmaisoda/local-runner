@@ -49,6 +49,8 @@ function generatePlist(daemonPath: string): string {
     <array>
         <string>${daemonPath}</string>
     </array>
+    <key>AssociatedBundleIdentifiers</key>
+    <string>com.gehnmaisoda.local-runner</string>
     <key>KeepAlive</key>
     <true/>
     <key>RunAtLoad</key>

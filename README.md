@@ -65,12 +65,12 @@ npx skills add gehnmaisoda/local-runner
 ```
 
 ```
-You: 毎朝9時にprojectsフォルダでgit fetchを全リポジトリに実行するタスクを作って
+You: daily-researchのコマンドを、毎日朝9時に実行するようにlrに登録して
 You: backup-dbのスケジュールを毎週月曜に変更して
 You: 失敗してるタスクある？ログ見せて
 ```
 
-YAML の書き方やスケジュール記法を覚える必要はない。会話の中で CLI が操作され、タスク定義が生成・更新される。
+YAML の書き方やスケジュール記法を覚える必要はない。「lrに登録して」と言うだけで、Skill が CLI を操作してタスク定義を生成・更新する。
 
 ### Web UI
 

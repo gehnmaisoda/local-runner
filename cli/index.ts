@@ -44,7 +44,7 @@ const MAIN_HELP = `使い方: lr [コマンド] [オプション]
   reload              タスク定義を再読み込み
   serve [ポート]      Web UI をブラウザを開かずに起動
   install             デーモンを LaunchAgent として登録
-  uninstall           デーモンの LaunchAgent を解除
+  uninstall           デーモンの LaunchAgent を解除 (--purge でデータも全削除)
   doctor              セットアップの診断
 
 共通オプション:
@@ -357,7 +357,7 @@ async function main() {
       break;
 
     case "uninstall":
-      await uninstall();
+      await uninstall(args.flags.has("purge"));
       break;
 
     case "doctor":

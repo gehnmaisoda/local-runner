@@ -89,8 +89,8 @@ export async function install() {
   console.log(`  Plist:    ${PLIST_PATH}`);
 }
 
-export async function uninstall() {
-  const result = await Bun.$`launchctl unload ${PLIST_PATH} 2>/dev/null`
+export async function uninstall(purge = false) {
+  await Bun.$`launchctl unload ${PLIST_PATH} 2>/dev/null`
     .quiet()
     .nothrow();
 
@@ -100,6 +100,17 @@ export async function uninstall() {
   }
 
   console.log("デーモンをアンインストールしました。");
+
+  if (purge) {
+    const configDir = join(homedir(), ".config", "local-runner");
+    for (const dir of [LOG_DIR, configDir]) {
+      if (existsSync(dir)) {
+        await Bun.$`rm -rf ${dir}`;
+        console.log(`  削除: ${dir}`);
+      }
+    }
+    console.log("すべてのデータを削除しました。");
+  }
 }
 
 export async function doctor(json = false) {

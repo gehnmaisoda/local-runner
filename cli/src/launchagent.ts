@@ -1,5 +1,6 @@
 import { homedir } from "os";
 import { join, resolve } from "path";
+import { existsSync } from "fs";
 import { getSocketPath } from "./ipc.ts";
 
 const isDev = process.env.LOCAL_RUNNER_DEV === "1";
@@ -140,7 +141,7 @@ export async function doctor(json = false) {
 
   // 4. ソケット
   const socketPath = getSocketPath();
-  const socketExists = await Bun.file(socketPath).exists();
+  const socketExists = existsSync(socketPath);
   if (socketExists) {
     checks.push({ check: "socket", ok: true, detail: socketPath });
     if (!json) console.log(`[ok] ソケット: ${socketPath}`);

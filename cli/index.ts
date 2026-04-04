@@ -228,7 +228,7 @@ async function main() {
     console.log(`lr ${CLI_VERSION}`);
     try {
       const client = await createClient();
-      const res = await client.send({ action: "get_version" });
+      const res = await client.send({ action: "get_version" }, 1000);
       if (res.version) {
         console.log(`local-runner-daemon ${res.version}`);
       }

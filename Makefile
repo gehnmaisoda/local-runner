@@ -47,3 +47,4 @@ install: build
 clean:
 	cd daemon && swift package clean
 	rm -f cli/lr
+	rm -rf dist

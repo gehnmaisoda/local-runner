@@ -11,6 +11,9 @@ cli/lr
 # macOS
 .DS_Store
 
+# Build artifacts
+dist/
+
 # Test results
 test-results/
 

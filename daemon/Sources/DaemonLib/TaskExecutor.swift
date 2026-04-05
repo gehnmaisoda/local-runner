@@ -34,8 +34,28 @@ public final class TaskExecutor: @unchecked Sendable {
         let expandedDir = NSString(string: dir).expandingTildeInPath
         process.currentDirectoryURL = URL(fileURLWithPath: expandedDir)
 
-        // 環境変数を引き継ぐ
-        process.environment = ProcessInfo.processInfo.environment
+        // 環境変数を引き継ぎつつ、LaunchAgent の最小 PATH を補完する
+        var env = ProcessInfo.processInfo.environment
+        let home = env["HOME"] ?? NSHomeDirectory()
+        let extraPaths = [
+            "\(home)/.local/bin",
+            "\(home)/.cargo/bin",
+            "\(home)/.bun/bin",
+            "\(home)/.deno/bin",
+            "\(home)/.volta/bin",
+            "\(home)/.nvm/versions/node/default/bin",
+            "\(home)/.pyenv/shims",
+            "\(home)/.rbenv/shims",
+            "\(home)/.goenv/shims",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+        ]
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let currentParts = Set(currentPath.components(separatedBy: ":"))
+        let newParts = extraPaths.filter { !currentParts.contains($0) }
+        env["PATH"] = (newParts + [currentPath]).joined(separator: ":")
+        process.environment = env
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

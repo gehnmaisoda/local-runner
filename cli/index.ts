@@ -10,6 +10,7 @@ import {
 import { startServer } from "./src/serve.ts";
 import { install, uninstall, doctor } from "./src/launchagent.ts";
 import { createClient } from "./src/ipc.ts";
+import { checkForUpdates } from "./src/update-check.ts";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -247,6 +248,7 @@ async function main() {
 
   // Default: open Web UI
   if (!command) {
+    checkForUpdates(CLI_VERSION);
     await startServer();
     return;
   }
@@ -370,14 +372,14 @@ async function main() {
 }
 
 main().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  const exitCode = err instanceof CLIError ? err.exitCode : EXIT.GENERAL;
+    const message = err instanceof Error ? err.message : String(err);
+    const exitCode = err instanceof CLIError ? err.exitCode : EXIT.GENERAL;
 
-  if (json) {
-    console.log(JSON.stringify({ success: false, error: message }));
-  } else {
-    console.error(`エラー: ${message}`);
-  }
+    if (json) {
+      console.log(JSON.stringify({ success: false, error: message }));
+    } else {
+      console.error(`エラー: ${message}`);
+    }
 
-  process.exit(exitCode);
-});
+    process.exit(exitCode);
+  });

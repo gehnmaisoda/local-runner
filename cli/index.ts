@@ -10,6 +10,7 @@ import {
 import { startServer } from "./src/serve.ts";
 import { install, uninstall, doctor } from "./src/launchagent.ts";
 import { createClient } from "./src/ipc.ts";
+import { checkForUpdates } from "./src/update-check.ts";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -247,6 +248,7 @@ async function main() {
 
   // Default: open Web UI
   if (!command) {
+    checkForUpdates(CLI_VERSION);
     await startServer();
     return;
   }

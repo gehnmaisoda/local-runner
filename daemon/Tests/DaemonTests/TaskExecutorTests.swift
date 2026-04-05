@@ -272,6 +272,71 @@ struct TaskExecutorEnvironmentTests {
     }
 }
 
+// MARK: - PATH complement
+
+@Suite("TaskExecutor - PATH complement")
+struct TaskExecutorPathComplementTests {
+    @Test("Adds well-known paths to minimal PATH")
+    func addsWellKnownPaths() {
+        let env = TaskExecutor.complementedEnvironment([
+            "HOME": "/Users/testuser",
+            "PATH": "/usr/bin:/bin",
+        ])
+        let path = env["PATH"]!
+        #expect(path.contains("/Users/testuser/.local/bin"))
+        #expect(path.contains("/Users/testuser/.cargo/bin"))
+        #expect(path.contains("/Users/testuser/.bun/bin"))
+        #expect(path.contains("/opt/homebrew/bin"))
+        #expect(path.contains("/usr/local/bin"))
+        // Original PATH is preserved at the end
+        #expect(path.hasSuffix("/usr/bin:/bin"))
+    }
+
+    @Test("Does not duplicate existing paths")
+    func noDuplicates() {
+        let env = TaskExecutor.complementedEnvironment([
+            "HOME": "/Users/testuser",
+            "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
+        ])
+        let path = env["PATH"]!
+        let parts = path.components(separatedBy: ":")
+        let homebrewCount = parts.filter { $0 == "/opt/homebrew/bin" }.count
+        #expect(homebrewCount == 1)
+    }
+
+    @Test("Uses fallback PATH when PATH is missing")
+    func fallbackPath() {
+        let env = TaskExecutor.complementedEnvironment([
+            "HOME": "/Users/testuser",
+        ])
+        let path = env["PATH"]!
+        #expect(path.contains("/usr/bin"))
+        #expect(path.contains("/Users/testuser/.local/bin"))
+    }
+
+    @Test("Uses NSHomeDirectory when HOME is missing")
+    func fallbackHome() {
+        let env = TaskExecutor.complementedEnvironment([
+            "PATH": "/usr/bin:/bin",
+        ])
+        let path = env["PATH"]!
+        let home = NSHomeDirectory()
+        #expect(path.contains("\(home)/.local/bin"))
+    }
+
+    @Test("Preserves non-PATH environment variables")
+    func preservesOtherVars() {
+        let env = TaskExecutor.complementedEnvironment([
+            "HOME": "/Users/testuser",
+            "PATH": "/usr/bin",
+            "LANG": "ja_JP.UTF-8",
+            "EDITOR": "vim",
+        ])
+        #expect(env["LANG"] == "ja_JP.UTF-8")
+        #expect(env["EDITOR"] == "vim")
+    }
+}
+
 // MARK: - Exit code handling
 
 @Suite("TaskExecutor - Exit codes")

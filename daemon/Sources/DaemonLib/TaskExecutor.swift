@@ -10,6 +10,37 @@ public final class TaskExecutor: @unchecked Sendable {
     /// SIGKILL までの猶予時間（秒）。
     private static let killGracePeriod: TimeInterval = 3
 
+    /// LaunchAgent の最小 PATH にユーザーツールの代表的パスを補完する
+    static let wellKnownPaths: [String] = [
+        "/.local/bin",
+        "/.cargo/bin",
+        "/.bun/bin",
+        "/.deno/bin",
+        "/.volta/bin",
+        "/.nvm/versions/node/default/bin",
+        "/.pyenv/shims",
+        "/.rbenv/shims",
+        "/.goenv/shims",
+    ]
+
+    static let systemPaths: [String] = [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+    ]
+
+    /// 環境変数を引き継ぎつつ、PATH を補完した環境変数辞書を返す。
+    static func complementedEnvironment(_ base: [String: String]) -> [String: String] {
+        var env = base
+        let home = env["HOME"] ?? NSHomeDirectory()
+        let extraPaths = wellKnownPaths.map { home + $0 } + systemPaths
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let currentParts = Set(currentPath.components(separatedBy: ":"))
+        let newParts = extraPaths.filter { !currentParts.contains($0) }
+        env["PATH"] = (newParts + [currentPath]).joined(separator: ":")
+        return env
+    }
+
     public init() {}
 
     /// タスクを実行し、完了した ExecutionRecord を返す。
@@ -34,8 +65,7 @@ public final class TaskExecutor: @unchecked Sendable {
         let expandedDir = NSString(string: dir).expandingTildeInPath
         process.currentDirectoryURL = URL(fileURLWithPath: expandedDir)
 
-        // 環境変数を引き継ぐ
-        process.environment = ProcessInfo.processInfo.environment
+        process.environment = Self.complementedEnvironment(ProcessInfo.processInfo.environment)
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

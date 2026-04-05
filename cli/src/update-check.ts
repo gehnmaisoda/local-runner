@@ -12,11 +12,11 @@ interface CacheData {
   latestVersion: string;
 }
 
-function parseVersion(v: string): number[] {
+export function parseVersion(v: string): number[] {
   return v.replace(/^v/, "").split(".").map(Number);
 }
 
-function isNewer(latest: string, current: string): boolean {
+export function isNewer(latest: string, current: string): boolean {
   const l = parseVersion(latest);
   const c = parseVersion(current);
   for (let i = 0; i < Math.max(l.length, c.length); i++) {

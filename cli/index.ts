@@ -372,14 +372,14 @@ async function main() {
 }
 
 main().catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    const exitCode = err instanceof CLIError ? err.exitCode : EXIT.GENERAL;
+  const message = err instanceof Error ? err.message : String(err);
+  const exitCode = err instanceof CLIError ? err.exitCode : EXIT.GENERAL;
 
-    if (json) {
-      console.log(JSON.stringify({ success: false, error: message }));
-    } else {
-      console.error(`エラー: ${message}`);
-    }
+  if (json) {
+    console.log(JSON.stringify({ success: false, error: message }));
+  } else {
+    console.error(`エラー: ${message}`);
+  }
 
-    process.exit(exitCode);
-  });
+  process.exit(exitCode);
+});

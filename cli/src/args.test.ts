@@ -132,6 +132,11 @@ describe("parseArgs", () => {
     expect(result.flags.has("version")).toBe(true);
   });
 
+  test("parses -v as version", () => {
+    const result = parseArgs(["-v"]);
+    expect(result.flags.has("version")).toBe(true);
+  });
+
   test("does not consume flag as option value", () => {
     // --name is a value-taking option, but if next arg is missing, it's skipped
     const result = parseArgs(["--timeout"]);

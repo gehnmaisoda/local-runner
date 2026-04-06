@@ -139,6 +139,7 @@ public final class TaskStore: @unchecked Sendable {
     /// タスク定義を YAML ファイルとして保存する。
     public func save(_ task: TaskDefinition) throws {
         let encoder = YAMLEncoder()
+        encoder.options.allowUnicode = true
         let yaml = try encoder.encode(task)
         let url = directory.appendingPathComponent("\(task.id).yaml")
         try yaml.write(to: url, atomically: true, encoding: .utf8)

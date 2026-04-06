@@ -52,6 +52,21 @@ lr run hello
 lr logs hello --output
 ```
 
+### Dotfiles で管理する
+
+タスク定義と設定は `~/.config/local-runner/` に保存される。このディレクトリを dotfiles リポジトリで管理すれば、マシン間でタスク設定を同期できる。
+
+```bash
+# 1. 既存のタスク定義を dotfiles にコピー
+cp -r ~/.config/local-runner /path/to/dotfiles/local-runner
+
+# 2. 元のディレクトリをシンボリックリンクに置き換え
+rm -rf ~/.config/local-runner
+ln -s /path/to/dotfiles/local-runner ~/.config/local-runner
+```
+
+新しいマシンでは dotfiles のセットアップ → `lr install` の順で実行すれば、symlink 先にタスク定義が既にあるため、デーモン起動直後からタスクが読み込まれる。
+
 ## Usage
 
 ### Coding Agent から自然言語で操作する (推奨)

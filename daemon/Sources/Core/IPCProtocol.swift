@@ -41,6 +41,22 @@ public struct IPCRequest: Codable, Sendable {
     public static func toggleTask(_ id: String) -> Self { .init(action: "toggle_task", taskId: id) }
     public static var getVersion: Self { .init(action: "get_version") }
     public static var subscribe: Self { .init(action: "subscribe") }
+    public static func getSystemLogs(limit: Int = 1000) -> Self { .init(action: "get_system_logs", limit: limit) }
+}
+
+// MARK: - System Log Entry
+
+/// システムログのエントリ。
+public struct LogEntry: Codable, Sendable {
+    public let timestamp: Date
+    public let tag: String
+    public let message: String
+
+    public init(timestamp: Date, tag: String, message: String) {
+        self.timestamp = timestamp
+        self.tag = tag
+        self.message = message
+    }
 }
 
 // MARK: - IPC Response
@@ -53,6 +69,7 @@ public struct IPCResponse: Codable, Sendable {
     public var history: [ExecutionRecord]?
     public var settings: GlobalSettings?
     public var version: String?
+    public var systemLogs: [LogEntry]?
 
     public init(
         success: Bool = true,
@@ -60,7 +77,8 @@ public struct IPCResponse: Codable, Sendable {
         tasks: [TaskStatus]? = nil,
         history: [ExecutionRecord]? = nil,
         settings: GlobalSettings? = nil,
-        version: String? = nil
+        version: String? = nil,
+        systemLogs: [LogEntry]? = nil
     ) {
         self.success = success
         self.error = error
@@ -68,6 +86,7 @@ public struct IPCResponse: Codable, Sendable {
         self.history = history
         self.settings = settings
         self.version = version
+        self.systemLogs = systemLogs
     }
 
     public static var ok: Self { .init() }

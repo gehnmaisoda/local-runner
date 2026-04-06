@@ -1660,3 +1660,83 @@ main {
   width: 100px;
   text-align: right;
 }
+
+/* System Log Modal */
+
+.modal-system-log {
+  width: 800px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-system-log .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.system-log-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-small {
+  padding: 3px 10px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-small:hover { background: var(--hover); }
+.btn-small:disabled { opacity: 0.5; cursor: default; }
+.btn-small.btn-danger { color: var(--red); }
+.btn-small.btn-danger:hover { background: rgba(239, 123, 108, 0.1); }
+
+.system-log-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.system-log-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.system-log-line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+  align-items: baseline;
+}
+
+.system-log-time {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.system-log-tag {
+  color: var(--accent);
+  flex-shrink: 0;
+  min-width: 70px;
+}
+
+.system-log-tag-wake { color: var(--yellow, #e5c07b); }
+.system-log-tag-scheduler { color: var(--green); }
+.system-log-tag-ipc { color: var(--muted); }
+.system-log-tag-network { color: var(--blue, #61afef); }
+
+.system-log-message {
+  color: var(--text);
+  word-break: break-all;
+}

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import {
-  formatDate, formatDuration, statusIcon, pad,
+  formatDate, formatDuration, formatTimestamp, statusIcon, pad,
   formatSchedule, generateId, buildSchedule, applyScheduleEdits,
   statusLabel, parsePositiveInt,
   CLIError, EXIT,
@@ -322,6 +322,24 @@ describe("applyScheduleEdits", () => {
     const existing = { type: "daily", time: "09:00" };
     const result = applyScheduleEdits(existing, new Map());
     expect(result).toEqual(existing);
+  });
+});
+
+// --- formatTimestamp tests ---
+
+describe("formatTimestamp", () => {
+  test("formats ISO date to YYYY-MM-DD HH:mm:ss", () => {
+    // Use a fixed UTC date and check the local representation
+    const result = formatTimestamp("2026-01-05T00:09:03Z");
+    // Should contain the date part with zero-padded values
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  test("zero-pads single digit month and day", () => {
+    // Use a Date known in local timezone to verify zero-padding
+    const d = new Date(2026, 0, 5, 3, 7, 9); // Jan 5, 03:07:09 local
+    const result = formatTimestamp(d.toISOString());
+    expect(result).toBe("2026-01-05 03:07:09");
   });
 });
 

@@ -15,6 +15,8 @@ argument-hint: "[操作内容を自然言語で]"
 - **全コマンドに `--json` を付けること**。出力を正確にパースするために必須。
 - 削除時は **`--yes`** を必ず付けて確認プロンプトをスキップする。
 - コマンドの実行結果は JSON で返る。成功時は各コマンド固有の形式、エラー時は `{"success":false,"error":"..."}` 形式。
+- **`--timeout` は付けない**。ユーザーが明示的に指定した場合のみ付ける。
+- **スケジュールの組み方が不明な場合は必ず AskUserQuestion で確認する**。推測で作成しない。
 - ユーザーに結果を伝える際は JSON をそのまま見せず、**人間が読みやすい形に整形**して説明する。
 
 ## コマンド一覧
@@ -119,6 +121,16 @@ lr config get --json
 # 設定変更
 lr config set default_timeout 1800 --json
 lr config set slack_webhook_url "https://hooks.slack.com/..." --json
+```
+
+### システムログ
+
+```bash
+# デーモンのシステムログを表示
+lr syslog --json
+
+# システムログを削除
+lr syslog --clear --json
 ```
 
 ### その他

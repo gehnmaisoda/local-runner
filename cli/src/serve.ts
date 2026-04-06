@@ -134,6 +134,17 @@ async function handleAPI(req: Request): Promise<Response> {
       return Response.json(res);
     }
 
+    if (path === "/api/system-logs" && req.method === "GET") {
+      const limit = parseInt(url.searchParams.get("limit") ?? "1000", 10);
+      const res = await sendToIPC({ action: "get_system_logs", limit });
+      return Response.json(res);
+    }
+
+    if (path === "/api/system-logs" && req.method === "DELETE") {
+      const res = await sendToIPC({ action: "clear_system_logs" });
+      return Response.json(res);
+    }
+
     if (path === "/api/settings" && req.method === "GET") {
       const res = await sendToIPC({ action: "get_settings" });
       return Response.json(res);

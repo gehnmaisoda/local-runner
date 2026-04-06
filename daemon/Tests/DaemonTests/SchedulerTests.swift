@@ -110,6 +110,114 @@ struct LogStoreCleanupTests {
     }
 }
 
+// MARK: - Catch-up deduplication tests
+
+@Suite("handleWake catch-up deduplication")
+struct HandleWakeCatchUpTests {
+    @Test("Skips catch-up when task already ran during sleep period")
+    func skipAlreadyRan() throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = AlwaysAwakeDisplay()
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+
+        // Create a task scheduled every_minute with catch_up enabled
+        let task = TaskDefinition(
+            id: "t1", name: "t1", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        // Simulate: task ran at sleepDate + 1 minute
+        let sleepDate = Date().addingTimeInterval(-3600) // 1 hour ago
+        let ranAt = sleepDate.addingTimeInterval(60)
+        let record = ExecutionRecord(
+            taskId: "t1", taskName: "t1",
+            startedAt: ranAt, finishedAt: ranAt.addingTimeInterval(1),
+            status: .success
+        )
+        logStore.append(record)
+
+        // handleWake should skip t1 because it already ran during sleep
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        let logs = Log.entries()
+        let rejected = logs.contains { $0.message.contains("キャッチアップ棄却") && $0.message.contains("t1") }
+        #expect(rejected, "Should log catch-up rejection for already-run task")
+    }
+
+    @Test("Skips catch-up when task has catchUp disabled")
+    func skipCatchUpDisabled() throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = AlwaysAwakeDisplay()
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+
+        let task = TaskDefinition(
+            id: "t3", name: "t3", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: false
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        let sleepDate = Date().addingTimeInterval(-3600)
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        let logs = Log.entries()
+        let anyT3 = logs.contains { $0.message.contains("t3") }
+        #expect(!anyT3, "Task with catchUp=false should not appear in catch-up logs")
+    }
+
+    @Test("Executes catch-up when task did not run during sleep period")
+    func executeWhenNotRan() async throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = AlwaysAwakeDisplay()
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+
+        let task = TaskDefinition(
+            id: "t2", name: "t2", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        // No execution records — task never ran
+        let sleepDate = Date().addingTimeInterval(-3600)
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        let logs = Log.entries()
+        let executed = logs.contains { $0.message.contains("キャッチアップ実行") && $0.message.contains("t2") }
+        #expect(executed, "Should execute catch-up for task that didn't run")
+
+        // Wait for async execution to complete
+        try? await Task.sleep(for: .milliseconds(500))
+        scheduler.shutdown()
+    }
+}
+
 // MARK: - NetworkMonitor callback tests
 
 @Suite("NetworkMonitor callback logic")

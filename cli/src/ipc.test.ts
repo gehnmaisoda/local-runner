@@ -119,6 +119,67 @@ test("send() rejects immediately when not connected", async () => {
   ).rejects.toThrow("接続されていません");
 });
 
+test("send() receives systemLogs in response", async () => {
+  const sockPath = testSocketPath();
+  cleanupPaths.push(sockPath);
+
+  const mockLogs = [
+    { timestamp: "2026-04-06T09:00:00+09:00", tag: "Scheduler", message: "test msg" },
+  ];
+
+  const server = Bun.listen({
+    unix: sockPath,
+    socket: {
+      data(socket) {
+        socket.write(encodeResponse({ success: true, systemLogs: mockLogs }));
+      },
+      open() {},
+      close() {},
+    },
+  });
+  cleanupServers.push(server);
+
+  const client = new IPCClient();
+  await client.connect(sockPath);
+
+  try {
+    const res = await client.send({ action: "get_system_logs", limit: 1000 }, 1000);
+    expect(res.success).toBe(true);
+    expect(res.systemLogs).toHaveLength(1);
+    expect(res.systemLogs![0].tag).toBe("Scheduler");
+    expect(res.systemLogs![0].message).toBe("test msg");
+  } finally {
+    client.close();
+  }
+});
+
+test("send() clear_system_logs returns success", async () => {
+  const sockPath = testSocketPath();
+  cleanupPaths.push(sockPath);
+
+  const server = Bun.listen({
+    unix: sockPath,
+    socket: {
+      data(socket) {
+        socket.write(encodeResponse({ success: true }));
+      },
+      open() {},
+      close() {},
+    },
+  });
+  cleanupServers.push(server);
+
+  const client = new IPCClient();
+  await client.connect(sockPath);
+
+  try {
+    const res = await client.send({ action: "clear_system_logs" }, 1000);
+    expect(res.success).toBe(true);
+  } finally {
+    client.close();
+  }
+});
+
 test("connect() rejects when socket path does not exist", async () => {
   const client = new IPCClient();
 

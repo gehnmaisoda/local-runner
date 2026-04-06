@@ -1,4 +1,4 @@
-import { createClient, type IPCClient, type TaskStatus, type ExecutionRecord, type Schedule, type TaskDefinition, type GlobalSettings } from "./ipc.ts";
+import { createClient, type IPCClient, type TaskStatus, type ExecutionRecord, type Schedule, type TaskDefinition, type GlobalSettings, type LogEntry } from "./ipc.ts";
 import { createInterface } from "readline";
 
 // --- Exit codes ---
@@ -29,6 +29,13 @@ export function formatDate(iso: string | undefined): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+/** ISO 日付文字列を "YYYY-MM-DD HH:mm:ss" 形式に変換する。 */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 export function formatDuration(record: ExecutionRecord): string {
@@ -642,6 +649,43 @@ export async function configSet(key: string, value: string, json: boolean) {
       console.log(JSON.stringify({ success: true }));
     } else {
       console.log(`${key} を ${value} に設定しました。`);
+    }
+  });
+}
+
+export async function syslog(json: boolean, clear: boolean) {
+  await withClient(async (client) => {
+    if (clear) {
+      const res = await client.send({ action: "clear_system_logs" });
+      if (!res.success) {
+        throw new CLIError(res.error ?? "システムログの削除に失敗しました", EXIT.GENERAL);
+      }
+      if (json) {
+        console.log(JSON.stringify({ success: true }));
+      } else {
+        console.log("システムログを削除しました。");
+      }
+      return;
+    }
+
+    const res = await client.send({ action: "get_system_logs", limit: 1000 });
+    if (!res.success) {
+      throw new CLIError(res.error ?? "システムログの取得に失敗しました", EXIT.GENERAL);
+    }
+
+    const logs: LogEntry[] = res.systemLogs ?? [];
+    if (json) {
+      console.log(JSON.stringify({ success: true, systemLogs: logs }));
+      return;
+    }
+
+    if (logs.length === 0) {
+      console.log("ログがありません。");
+      return;
+    }
+
+    for (const entry of logs) {
+      console.log(`${formatTimestamp(entry.timestamp)}  ${entry.tag.padEnd(12)}  ${entry.message}`);
     }
   });
 }

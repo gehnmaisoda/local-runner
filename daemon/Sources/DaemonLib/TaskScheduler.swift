@@ -157,10 +157,19 @@ public final class TaskScheduler: @unchecked Sendable {
         let tasksSnapshot = lock.withLock { tasks }
         Log.info("Scheduler", "スリープ復帰を検知。\(Log.formatDate(lastSleepDate)) 以降の未実行タスクを確認中...")
 
+        let now = Date()
         let catchUpTasks = tasksSnapshot.filter { task in
             guard task.enabled, task.catchUp else { return false }
             guard let nextFire = task.schedule.nextFireDate(after: lastSleepDate) else { return false }
-            return nextFire < Date()
+            guard nextFire < now else { return false }
+
+            // スリープ期間中に既に実行済みならスキップ
+            if let lastRun = logStore.lastRecord(taskId: task.id),
+               lastRun.startedAt >= lastSleepDate {
+                Log.info("Scheduler", "キャッチアップ棄却: \(task.name) はスリープ期間中に実行済み (\(Log.formatDate(lastRun.startedAt)))")
+                return false
+            }
+            return true
         }
 
         if networkMonitor.isConnected {

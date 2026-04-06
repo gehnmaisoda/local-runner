@@ -4,7 +4,7 @@ import { parseArgs } from "./src/args.ts";
 import {
   listTasks, showTask, createTask, editTask, deleteTask,
   runTask, stopTask, toggleTask, showLogs, showStatus,
-  configGet, configSet, reloadTasks,
+  configGet, configSet, syslog, reloadTasks,
   CLIError, EXIT, parsePositiveInt,
 } from "./src/commands.ts";
 import { startServer } from "./src/serve.ts";
@@ -42,6 +42,7 @@ const MAIN_HELP = `使い方: lr [コマンド] [オプション]
   status              サマリーを表示
   config get          設定を表示
   config set <k> <v>  設定を変更
+  syslog              デーモンのシステムログを表示
   reload              タスク定義を再読み込み
   serve [ポート]      Web UI をブラウザを開かずに起動
   install             デーモンを LaunchAgent として登録
@@ -190,6 +191,14 @@ const HELP: Record<string, string> = {
   lr config get
   lr config set default_timeout 1800
   lr config set slack_webhook_url "https://hooks.slack.com/services/..."`,
+
+  syslog: `デーモンのシステムログを表示します。
+
+使い方: lr syslog [オプション]
+
+オプション:
+  --clear   ログを削除
+  --json    JSON で出力`,
 
   reload: `タスク定義ファイルを再読み込みします。
 
@@ -343,6 +352,10 @@ async function main() {
       }
       break;
     }
+
+    case "syslog":
+      await syslog(json, args.flags.has("clear"));
+      break;
 
     case "reload":
       await reloadTasks(json);

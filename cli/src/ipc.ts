@@ -59,6 +59,12 @@ export interface IPCRequest {
   settings?: GlobalSettings;
 }
 
+export interface LogEntry {
+  timestamp: string;
+  tag: string;
+  message: string;
+}
+
 export interface IPCResponse {
   success: boolean;
   error?: string;
@@ -66,6 +72,7 @@ export interface IPCResponse {
   history?: ExecutionRecord[];
   settings?: GlobalSettings;
   version?: string;
+  systemLogs?: LogEntry[];
 }
 
 export interface IPCNotification {

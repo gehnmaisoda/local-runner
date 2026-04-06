@@ -313,6 +313,15 @@ public final class IPCServer: @unchecked Sendable {
         case "get_version":
             return IPCResponse(version: AppVersion.current)
 
+        case "get_system_logs":
+            let limit = request.limit ?? 1000
+            let entries = Log.entries(limit: limit)
+            return IPCResponse(systemLogs: entries)
+
+        case "clear_system_logs":
+            Log.clear()
+            return .ok
+
         case "subscribe":
             lock.lock()
             subscriberFDs.append(clientFD)

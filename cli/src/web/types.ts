@@ -46,3 +46,9 @@ export interface GlobalSettings {
   slack_webhook_url?: string;
   default_timeout?: number;
 }
+
+export interface LogEntry {
+  timestamp: string;
+  tag: string;
+  message: string;
+}

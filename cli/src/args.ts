@@ -12,6 +12,7 @@ const BOOLEAN_FLAGS = new Set([
 
 const SHORT_FLAGS: Record<string, string> = {
   h: "help",
+  v: "version",
   V: "version",
   y: "yes",
 };

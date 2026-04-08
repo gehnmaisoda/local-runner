@@ -43,8 +43,12 @@ public final class SlackNotifier: @unchecked Sendable {
         }
 
         let header = "\(emoji) *タスク\(statusText): \(Self.escapeSlack(task.name))*"
+        let escapedCommand = Self.escapeSlack(task.command)
+        let commandField = escapedCommand.contains("\n")
+            ? "• コマンド:\n```\n\(escapedCommand)\n```"
+            : "• コマンド: `\(escapedCommand)`"
         let details = [
-            "• コマンド: `\(Self.escapeSlack(task.command))`",
+            commandField,
             "• 終了コード: \(record.exitCode ?? -1)",
             "• 時刻: \(Log.formatDate(record.startedAt))",
             "• 実行時間: \(record.durationText)",
@@ -74,8 +78,8 @@ public final class SlackNotifier: @unchecked Sendable {
 
     /// スレッドに実行ログを追記する。stdout / stderr を別々の block に分けて投稿。
     private func postLogToThread(token: String, channel: String, threadTs: String, record: ExecutionRecord) {
-        let stdoutPreview = String(record.stdout.prefix(Self.logPreviewLimit))
-        let stderrPreview = String(record.stderr.prefix(Self.logPreviewLimit))
+        let stdoutPreview = String(record.stdout.prefix(Self.logPreviewLimit)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let stderrPreview = String(record.stderr.prefix(Self.logPreviewLimit)).trimmingCharacters(in: .whitespacesAndNewlines)
 
         var blocks: [[String: Any]] = []
         var textParts: [String] = []

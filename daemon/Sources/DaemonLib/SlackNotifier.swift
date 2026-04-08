@@ -19,6 +19,18 @@ public final class SlackNotifier: @unchecked Sendable {
         }
     }
 
+    /// Slack 通知用の日時フォーマット（例: 2026/04/08 21:15）
+    private static let slackDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy/MM/dd HH:mm"
+        f.locale = Locale(identifier: "ja_JP")
+        return f
+    }()
+
+    static func formatDateForSlack(_ date: Date) -> String {
+        slackDateFormatter.string(from: date)
+    }
+
     /// Slack mrkdwn の特殊文字をエスケープする。
     static func escapeSlack(_ str: String) -> String {
         str.replacingOccurrences(of: "&", with: "&amp;")
@@ -48,7 +60,7 @@ public final class SlackNotifier: @unchecked Sendable {
         let details = [
             commandField,
             "• 終了コード: \(record.exitCode ?? -1)",
-            "• 時刻: \(Log.formatDate(record.startedAt))",
+            "• 時刻: \(Self.formatDateForSlack(record.startedAt))",
             "• 実行時間: \(record.durationText)",
         ].joined(separator: "\n")
 

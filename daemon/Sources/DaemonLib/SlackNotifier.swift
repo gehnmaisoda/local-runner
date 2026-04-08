@@ -109,7 +109,7 @@ public final class SlackNotifier: @unchecked Sendable {
     }
 
     /// chat.postMessage を送信する。completion で thread_ts を返す。
-    private func postMessage(token: String, payload: [String: Any], completion: ((String?) -> Void)? = nil) {
+    private func postMessage(token: String, payload: [String: Any], completion: (@Sendable (String?) -> Void)? = nil) {
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
             completion?(nil)
             return

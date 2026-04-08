@@ -36,6 +36,45 @@ struct TaskDefinitionTests {
         #expect(task.timeout == nil)
     }
 
+    @Test("Missing slack_notify in JSON defaults to true (backward compatibility)")
+    func missingSlackNotifyDefaultsTrue() throws {
+        let json = """
+        {"id":"t","name":"test","command":"echo hi","schedule":{"type":"every_minute"},"enabled":true,"catch_up":true}
+        """
+        let decoder = JSONDecoder()
+        let task = try decoder.decode(TaskDefinition.self, from: Data(json.utf8))
+        #expect(task.slackNotify == true)
+        #expect(task.slackMentions == nil)
+    }
+
+    @Test("Missing notify_on_failure in legacy YAML does not break decoding")
+    func legacyYamlWithoutSlackNotify() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lr-compat-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let yaml = """
+        id: legacy
+        name: Legacy Task
+        command: echo legacy
+        schedule:
+          type: daily
+          time: "09:00"
+        enabled: true
+        catch_up: true
+        """
+        try yaml.write(
+            to: dir.appendingPathComponent("legacy.yaml"),
+            atomically: true, encoding: .utf8
+        )
+
+        let store = TaskStore(directory: dir)
+        let tasks = store.loadAll()
+        #expect(tasks.count == 1)
+        #expect(tasks[0].slackNotify == true)
+    }
+
     @Test("TaskDefinition with timeout encodes via IPCWireFormat")
     func timeoutWireFormatRoundtrip() throws {
         let task = TaskDefinition(id: "t", name: "test", command: "sleep 999", timeout: 120)

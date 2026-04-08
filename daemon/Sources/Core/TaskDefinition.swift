@@ -51,6 +51,22 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         case slackMentions = "slack_mentions"
         case timeout
     }
+
+    /// 既存 YAML に slack_notify が存在しない場合のデフォルト値を提供する。
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        command = try container.decode(String.self, forKey: .command)
+        workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory)
+        schedule = try container.decode(Schedule.self, forKey: .schedule)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        catchUp = try container.decode(Bool.self, forKey: .catchUp)
+        slackNotify = try container.decodeIfPresent(Bool.self, forKey: .slackNotify) ?? true
+        slackMentions = try container.decodeIfPresent([String].self, forKey: .slackMentions)
+        timeout = try container.decodeIfPresent(Int.self, forKey: .timeout)
+    }
 }
 
 // MARK: - TaskStore

@@ -622,7 +622,8 @@ export async function configGet(json: boolean) {
     const s = res.settings;
     console.log(`デフォルトタイムアウト: ${s.default_timeout ?? 3600}秒`);
     console.log(`Slack Bot Token:       ${s.slack_bot_token ? "(設定済み)" : "(未設定)"}`);
-    console.log(`Slack Channel:         ${s.slack_channel ?? "(未設定)"}`);
+    const channelDisplay = s.slack_channel_name ? `#${s.slack_channel_name} (${s.slack_channel})` : s.slack_channel;
+    console.log(`Slack Channel:         ${channelDisplay ?? "(未設定)"}`);
   });
 }
 

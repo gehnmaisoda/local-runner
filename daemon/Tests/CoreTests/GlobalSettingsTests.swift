@@ -20,21 +20,23 @@ struct GlobalSettingsSlackTests {
 
     @Test("GlobalSettings JSON roundtrip preserves Slack fields")
     func jsonRoundtrip() throws {
-        let settings = GlobalSettings(slackBotToken: "xoxb-abc", slackChannel: "C456", defaultTimeout: 120)
+        let settings = GlobalSettings(slackBotToken: "xoxb-abc", slackChannel: "C456", slackChannelName: "general", defaultTimeout: 120)
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(GlobalSettings.self, from: data)
         #expect(decoded.slackBotToken == "xoxb-abc")
         #expect(decoded.slackChannel == "C456")
+        #expect(decoded.slackChannelName == "general")
         #expect(decoded.defaultTimeout == 120)
     }
 
     @Test("JSON uses snake_case keys")
     func snakeCaseKeys() throws {
-        let settings = GlobalSettings(slackBotToken: "xoxb-x", slackChannel: "C1")
+        let settings = GlobalSettings(slackBotToken: "xoxb-x", slackChannel: "C1", slackChannelName: "test")
         let data = try JSONEncoder().encode(settings)
         let json = String(data: data, encoding: .utf8)!
         #expect(json.contains("slack_bot_token"))
         #expect(json.contains("slack_channel"))
+        #expect(json.contains("slack_channel_name"))
     }
 }
 

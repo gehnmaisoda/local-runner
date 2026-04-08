@@ -12,21 +12,25 @@ macOS 向けのローカルタスクスケジューラ。
 
 開発マシンで定期タスクを動かしたいとき、選択肢はいくつかある。
 
-- **Cloud Scheduler** — 認証やインフラの用意が必要。ローカルのスクリプトを動かすだけなのにオーバーヘッドが大きく、ベンダーごとに仕様も違う
 - **cron** — シンプルだがログも通知もなく、Mac のスリープ中に逃したタスクは実行されない
 - **launchd (plist)** — macOS ネイティブだが XML の手書き管理が手間
+- **n8n / Airflow** — 高機能だが Docker + DB が必要。ローカルの認証情報が使えず、ノート PC のスリープにも非対応
 
 LocalRunner は launchd の上に構築し、macOS ネイティブの信頼性を保ちながら、ログ・通知・ネットワーク状態の考慮・CLI/Web UI を提供する。
 
-|  | cron | launchd | Cloud Scheduler | **LocalRunner** |
+|  | cron | launchd | n8n / Airflow | **LocalRunner** |
 |:---|:---:|:---:|:---:|:---:|
-| スリープ復帰後のキャッチアップ | -- | 制限あり | N/A | タスク単位で設定可 |
-| ネットワーク切断時の保留・復帰実行 | -- | -- | N/A | 自動 |
-| 実行ログの永続化・閲覧 | 自前 | stdout/stderr のみ | コンソール | JSON + CLI/Web UI |
-| 失敗時の通知 | 自前 | -- | 別サービス経由 | Slack Webhook |
-| タスク定義 | crontab | XML plist | ベンダー固有 | YAML |
-| 管理 UI | -- | -- | ベンダーコンソール | Web UI + CLI |
-| 認証・インフラ | 不要 | 不要 | 必要 | 不要 |
+| スケジュール | cron 式 | plist で定義 | cron 式 + DAG | cron 式 + プリセット |
+| 実行ログの永続化 | -- | stdout/stderr のみ | Web UI で閲覧可 | JSON + CLI / Web UI |
+| 失敗通知 | -- | -- | Slack / Email 等 | Slack (Bot Token / Webhook) |
+| Web UI | -- | -- | あり | あり |
+| ローカル認証情報 | そのまま使える | そのまま使える | 再設定が必要 | そのまま使える |
+| macOS スリープ復帰 | 実行されない | 制限あり | 実行されない | タスク単位で設定可 |
+| ネットワーク復帰待ち | -- | -- | -- | 自動 |
+| セットアップ | OS 組み込み | OS 組み込み (XML) | Docker or Node.js + DB | `brew install` |
+| 料金 | 無料 | 無料 | セルフホスト無料 / クラウド有料 | 無料 (MIT) |
+
+> 詳しい比較は [docs/comparison.md](docs/comparison.md) を参照
 
 ## Quick Start
 

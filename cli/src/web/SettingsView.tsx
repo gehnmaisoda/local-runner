@@ -34,18 +34,6 @@ export function SettingsView({ settings, loading, onSave }: Props) {
 
   const initialized = useRef(false);
 
-  useEffect(() => {
-    if (!settings || initialized.current) return;
-    initialized.current = true;
-    setBotToken(settings.slack_bot_token ?? "");
-    setSlackChannel(settings.slack_channel ?? "");
-    setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
-    // トークンが設定済みならチャンネル一覧を取得
-    if (settings.slack_bot_token?.startsWith("xoxb-")) {
-      fetchChannels();
-    }
-  }, [settings, fetchChannels]);
-
   // チャンネル一覧を取得（サーバーが保存済みトークンを使用）
   const fetchChannels = useCallback(async () => {
     setChannelsLoading(true);
@@ -68,6 +56,18 @@ export function SettingsView({ settings, loading, onSave }: Props) {
       setChannelsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!settings || initialized.current) return;
+    initialized.current = true;
+    setBotToken(settings.slack_bot_token ?? "");
+    setSlackChannel(settings.slack_channel ?? "");
+    setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
+    // トークンが設定済みならチャンネル一覧を取得
+    if (settings.slack_bot_token?.startsWith("xoxb-")) {
+      fetchChannels();
+    }
+  }, [settings, fetchChannels]);
 
   // Auto-save on change (debounced)
   const onSaveRef = useRef(onSave);

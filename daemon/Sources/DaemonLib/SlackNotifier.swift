@@ -43,7 +43,8 @@ public final class SlackNotifier: @unchecked Sendable {
         }
 
         let header = "\(emoji) *タスク\(statusText): \(Self.escapeSlack(task.name))*"
-        let commandField = "• コマンド:\n```\n\(Self.escapeSlack(task.command))\n```"
+        let trimmedCommand = task.command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let commandField = "• コマンド:\n```\n\(Self.escapeSlack(trimmedCommand))\n```"
         let details = [
             commandField,
             "• 終了コード: \(record.exitCode ?? -1)",

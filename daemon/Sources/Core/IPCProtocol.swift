@@ -144,13 +144,15 @@ public struct IPCNotification: Codable, Sendable {
 public struct GlobalSettings: Codable, Sendable, Equatable {
     public var slackBotToken: String?
     public var slackChannel: String?
+    public var slackChannelName: String?
     public var defaultTimeout: Int?
 
     public static let defaultTimeoutValue = 3600
 
-    public init(slackBotToken: String? = nil, slackChannel: String? = nil, defaultTimeout: Int? = nil) {
+    public init(slackBotToken: String? = nil, slackChannel: String? = nil, slackChannelName: String? = nil, defaultTimeout: Int? = nil) {
         self.slackBotToken = slackBotToken
         self.slackChannel = slackChannel
+        self.slackChannelName = slackChannelName
         self.defaultTimeout = defaultTimeout
     }
 
@@ -162,6 +164,7 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case slackBotToken = "slack_bot_token"
         case slackChannel = "slack_channel"
+        case slackChannelName = "slack_channel_name"
         case defaultTimeout = "default_timeout"
     }
 }

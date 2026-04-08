@@ -46,6 +46,7 @@ export interface TaskStatus {
 export interface GlobalSettings {
   slack_bot_token?: string;
   slack_channel?: string;
+  slack_channel_name?: string;
   default_timeout?: number;
 }
 

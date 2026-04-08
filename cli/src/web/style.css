@@ -1744,6 +1744,12 @@ main {
   word-break: break-all;
 }
 
+/* Slack channel display */
+.settings-channel-display {
+  font-size: 13px;
+  color: var(--text);
+}
+
 /* Slack user mentions */
 .slack-user-mentions {
   display: flex;

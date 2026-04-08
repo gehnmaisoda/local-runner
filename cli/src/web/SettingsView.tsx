@@ -32,14 +32,16 @@ function slackErrorMessage(error: string): string {
 export function SettingsView({ settings, loading, onSave }: Props) {
   const [botToken, setBotToken] = useState("");
   const [slackChannel, setSlackChannel] = useState("");
+  const [slackChannelName, setSlackChannelName] = useState("");
   const [defaultTimeout, setDefaultTimeout] = useState(DEFAULT_TIMEOUT);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [showSystemLog, setShowSystemLog] = useState(false);
 
-  // Slack channel picker
+  // チャンネル選択モード
+  const [channelPicking, setChannelPicking] = useState(false);
   const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelsError, setChannelsError] = useState<string | null>(null);
-  const channelsFetchedRef = useRef(false);
 
   // Test send
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
@@ -52,11 +54,38 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     initialized.current = true;
     setBotToken(settings.slack_bot_token ?? "");
     setSlackChannel(settings.slack_channel ?? "");
+    setSlackChannelName(settings.slack_channel_name ?? "");
     setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
   }, [settings]);
 
-  // チャンネル一覧をバックグラウンドで取得（サーバーが保存済みトークンを使用）
-  const fetchChannels = useCallback(async () => {
+  // Auto-save on change (debounced)
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { onSaveRef.current = onSave; });
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (!initialized.current) return;
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+
+    setSaveStatus("idle");
+    const timer = setTimeout(async () => {
+      setSaveStatus("saving");
+      const ok = await onSaveRef.current({
+        slack_bot_token: botToken.trim() || undefined,
+        slack_channel: slackChannel || undefined,
+        slack_channel_name: slackChannelName || undefined,
+        default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
+      });
+      setSaveStatus(ok ? "saved" : "idle");
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [botToken, slackChannel, slackChannelName, defaultTimeout]);
+
+  // 「変更」ボタン押下時にチャンネル一覧を取得
+  const handleStartPicking = useCallback(async () => {
+    setChannelPicking(true);
+    setChannelsLoading(true);
     setChannelsError(null);
     try {
       const res = await fetch("/api/slack/channels");
@@ -70,48 +99,17 @@ export function SettingsView({ settings, loading, onSave }: Props) {
       }
     } catch {
       setChannelsError("チャンネルの取得に失敗しました");
+    } finally {
+      setChannelsLoading(false);
     }
   }, []);
 
-  // 初期化完了後、トークンがあればチャンネルを1回だけ取得
-  useEffect(() => {
-    if (!initialized.current || channelsFetchedRef.current) return;
-    if (botToken.startsWith("xoxb-")) {
-      channelsFetchedRef.current = true;
-      fetchChannels();
-    }
-  }, [botToken, fetchChannels]);
-
-  // Auto-save on change (debounced)
-  const onSaveRef = useRef(onSave);
-  useEffect(() => { onSaveRef.current = onSave; });
-  const isFirstRender = useRef(true);
-  const prevTokenForFetchRef = useRef(botToken);
-
-  useEffect(() => {
-    if (!initialized.current) return;
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-
-    const tokenChanged = botToken !== prevTokenForFetchRef.current;
-
-    setSaveStatus("idle");
-    const timer = setTimeout(async () => {
-      setSaveStatus("saving");
-      const ok = await onSaveRef.current({
-        slack_bot_token: botToken.trim() || undefined,
-        slack_channel: slackChannel || undefined,
-        default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
-      });
-      setSaveStatus(ok ? "saved" : "idle");
-      // トークンが変わって保存成功したらチャンネル再取得
-      if (ok && tokenChanged && botToken.startsWith("xoxb-")) {
-        prevTokenForFetchRef.current = botToken;
-        fetchChannels();
-      }
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [botToken, slackChannel, defaultTimeout, fetchChannels]);
+  const handleChannelSelect = (channelId: string) => {
+    const ch = channels.find(c => c.id === channelId);
+    setSlackChannel(channelId);
+    setSlackChannelName(ch?.name ?? "");
+    setChannelPicking(false);
+  };
 
   const handleTestSend = async () => {
     if (!botToken || !slackChannel) return;
@@ -138,8 +136,6 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   };
 
   if (loading) return null;
-
-  const channelName = channels.find(c => c.id === slackChannel)?.name;
 
   return (
     <div className="settings-view">
@@ -196,30 +192,36 @@ export function SettingsView({ settings, loading, onSave }: Props) {
           </div>
           <div className="settings-field">
             <label className="settings-label">通知先チャンネル</label>
-            {channels.length > 0 ? (
-              <select
-                className="form-input"
-                value={slackChannel}
-                onChange={(e) => setSlackChannel(e.target.value)}
-              >
-                <option value="">チャンネルを選択...</option>
-                {channels.map((ch) => (
-                  <option key={ch.id} value={ch.id}>#{ch.name}</option>
-                ))}
-              </select>
+            {channelPicking ? (
+              channelsLoading ? (
+                <div className="field-hint-small">チャンネルを取得中...</div>
+              ) : channelsError ? (
+                <>
+                  <div className="field-error">{channelsError}</div>
+                  <button className="btn-small" onClick={() => setChannelPicking(false)}>キャンセル</button>
+                </>
+              ) : (
+                <select
+                  className="form-input"
+                  value={slackChannel}
+                  onChange={(e) => handleChannelSelect(e.target.value)}
+                  autoFocus
+                >
+                  <option value="">チャンネルを選択...</option>
+                  {channels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                  ))}
+                </select>
+              )
             ) : (
-              <input
-                className="form-input"
-                type="text"
-                value={slackChannel}
-                onChange={(e) => setSlackChannel(e.target.value)}
-                placeholder="C1234567890"
-                autoComplete="off"
-                data-1p-ignore
-              />
-            )}
-            {channelsError && (
-              <div className="field-error">{channelsError}</div>
+              <div className="settings-field-row">
+                <span className="settings-channel-display">
+                  {slackChannelName ? `#${slackChannelName}` : slackChannel || "(未設定)"}
+                </span>
+                {botToken && (
+                  <button className="btn-small" onClick={handleStartPicking}>変更</button>
+                )}
+              </div>
             )}
           </div>
           {botToken && slackChannel && (

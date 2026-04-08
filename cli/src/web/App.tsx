@@ -79,20 +79,6 @@ export function App() {
 
   return (
     <>
-      <header>
-        <div className="header-brand">
-          <div className="header-logo">
-            <svg viewBox="0 0 16 16" fill="none">
-              <path d="M4 3L12 8L4 13V3Z" fill="#111110"/>
-            </svg>
-          </div>
-          <h1>LocalRunner</h1>
-        </div>
-        <span className={`conn-badge ${connected && daemonConnected ? "connected" : "disconnected"}`}>
-          {connected && daemonConnected ? "接続中" : "切断"}
-        </span>
-      </header>
-
       <main>
         {!tasksLoading && !daemonConnected ? (
           <DisconnectedView onRetry={handleRetry} retrying={retrying} />

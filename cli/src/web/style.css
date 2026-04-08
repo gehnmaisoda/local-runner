@@ -1330,6 +1330,8 @@ main {
   position: relative;
   flex-shrink: 0;
   transition: all 0.12s ease;
+  outline-offset: 2px;
+  margin: 2px;
 }
 
 .checkbox-label input[type="checkbox"]:checked {
@@ -1739,4 +1741,53 @@ main {
 .system-log-message {
   color: var(--text);
   word-break: break-all;
+}
+
+/* Slack user mentions */
+.slack-user-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-left: 26px;
+}
+
+.mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--surface-hover, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.mention-chip-remove {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  transition: all 0.12s ease;
+}
+
+.mention-chip-remove:hover {
+  background: var(--danger, #e06c75);
+  color: #fff;
+}
+
+.mention-select {
+  width: auto;
+  min-width: 160px;
+  font-size: 12px;
+  padding: 3px 8px;
 }

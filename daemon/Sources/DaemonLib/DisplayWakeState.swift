@@ -15,8 +15,10 @@ public final class DisplayWakeState: DisplayWakeStateChecking, @unchecked Sendab
     public func shouldExecuteScheduledTasks() -> Bool {
         let displayID = CGMainDisplayID()
         guard displayID != kCGNullDirectDisplay else {
-            // ディスプレイ状態を取得できない場合は安全側（実行する）
-            return true
+            // ディスプレイ状態を取得できない場合は安全側（実行しない）
+            // DarkWake 中は GPU 未初期化で kCGNullDirectDisplay が返る
+            Log.info("DisplayWakeState", "ディスプレイID取得不可 — DarkWake の可能性があるためスキップ")
+            return false
         }
 
         if CGDisplayIsAsleep(displayID) == 0 {
@@ -32,7 +34,8 @@ public final class DisplayWakeState: DisplayWakeStateChecking, @unchecked Sendab
         let result = IOPMCopyAssertionsStatus(&assertionsStatus)
         guard result == kIOReturnSuccess,
               let cfDict = assertionsStatus?.takeRetainedValue() else {
-            return true
+            Log.info("DisplayWakeState", "Assertion 状態を取得できないためスキップ")
+            return false
         }
 
         let dict = cfDict as NSDictionary

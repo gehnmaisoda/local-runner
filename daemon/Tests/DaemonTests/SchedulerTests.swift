@@ -27,6 +27,10 @@ struct AlwaysAwakeDisplay: DisplayWakeStateChecking {
     func shouldExecuteScheduledTasks() -> Bool { true }
 }
 
+struct DarkWakeDisplay: DisplayWakeStateChecking {
+    func shouldExecuteScheduledTasks() -> Bool { false }
+}
+
 // MARK: - Helpers
 
 private let testTasksDir = FileManager.default.temporaryDirectory
@@ -213,6 +217,116 @@ struct HandleWakeCatchUpTests {
         #expect(executed, "Should execute catch-up for task that didn't run")
 
         // Wait for async execution to complete
+        try? await Task.sleep(for: .milliseconds(500))
+        scheduler.shutdown()
+    }
+}
+
+// MARK: - DarkWake handleWake tests
+
+@Suite("handleWake DarkWake guard")
+struct HandleWakeDarkWakeTests {
+    @Test("Skips catch-up execution during DarkWake")
+    func skipDuringDarkWake() throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = DarkWakeDisplay()
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+
+        let task = TaskDefinition(
+            id: "dw1", name: "dw1", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        let sleepDate = Date().addingTimeInterval(-3600)
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        let logs = Log.entries()
+        let skipped = logs.contains { $0.message.contains("DarkWake中のためキャッチアップ実行をスキップ") }
+        #expect(skipped, "Should skip catch-up during DarkWake")
+
+        let executed = logs.contains { $0.message.contains("キャッチアップ実行") && $0.message.contains("dw1") }
+        #expect(!executed, "Should not execute any task during DarkWake")
+
+        // logStore にレコードが追加されていないことを確認
+        let history = logStore.history(taskId: "dw1")
+        #expect(history.isEmpty, "No execution records should be created during DarkWake")
+    }
+
+    @Test("Skips pending enqueue during DarkWake even when offline")
+    func skipPendingDuringDarkWake() throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = DarkWakeDisplay()
+        let net = MockNetworkMonitor()
+        net.simulateDisconnect()
+        scheduler.networkMonitor = net
+
+        let task = TaskDefinition(
+            id: "dw2", name: "dw2", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        let sleepDate = Date().addingTimeInterval(-3600)
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        // オフラインでも DarkWake ガードが先に効いて保留キューにも入らない
+        let history = logStore.history(taskId: "dw2")
+        #expect(history.isEmpty, "No pending records should be enqueued during DarkWake")
+    }
+
+    @Test("Catch-up executes after DarkWake transitions to Full Wake")
+    func executeAfterFullWake() async throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+
+        let task = TaskDefinition(
+            id: "dw3", name: "dw3", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        let sleepDate = Date().addingTimeInterval(-3600)
+
+        // DarkWake 中: スキップされる
+        scheduler.displayWakeState = DarkWakeDisplay()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+        #expect(logStore.history(taskId: "dw3").isEmpty)
+
+        // Full Wake: キャッチアップが実行される
+        scheduler.displayWakeState = AlwaysAwakeDisplay()
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: sleepDate)
+
+        let logs = Log.entries()
+        let executed = logs.contains { $0.message.contains("キャッチアップ実行") && $0.message.contains("dw3") }
+        #expect(executed, "Should execute catch-up after transitioning to Full Wake")
+
         try? await Task.sleep(for: .milliseconds(500))
         scheduler.shutdown()
     }

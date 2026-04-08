@@ -154,6 +154,11 @@ public final class TaskScheduler: @unchecked Sendable {
     // MARK: - スリープ復帰
 
     public func handleWake(lastSleepDate: Date) {
+        guard displayWakeState.shouldExecuteScheduledTasks() else {
+            Log.info("Scheduler", "DarkWake中のためキャッチアップ実行をスキップ")
+            return
+        }
+
         let tasksSnapshot = lock.withLock { tasks }
         Log.info("Scheduler", "スリープ復帰を検知。\(Log.formatDate(lastSleepDate)) 以降の未実行タスクを確認中...")
 

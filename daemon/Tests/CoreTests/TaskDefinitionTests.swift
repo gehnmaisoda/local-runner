@@ -29,11 +29,50 @@ struct TaskDefinitionTests {
     @Test("Missing timeout in JSON decodes as nil")
     func missingTimeoutDecodesNil() throws {
         let json = """
-        {"id":"t","name":"test","command":"echo hi","schedule":{"type":"every_minute"},"enabled":true,"catch_up":true,"notify_on_failure":false}
+        {"id":"t","name":"test","command":"echo hi","schedule":{"type":"every_minute"},"enabled":true,"catch_up":true,"slack_notify":true}
         """
         let decoder = JSONDecoder()
         let task = try decoder.decode(TaskDefinition.self, from: Data(json.utf8))
         #expect(task.timeout == nil)
+    }
+
+    @Test("Missing slack_notify in JSON defaults to true (backward compatibility)")
+    func missingSlackNotifyDefaultsTrue() throws {
+        let json = """
+        {"id":"t","name":"test","command":"echo hi","schedule":{"type":"every_minute"},"enabled":true,"catch_up":true}
+        """
+        let decoder = JSONDecoder()
+        let task = try decoder.decode(TaskDefinition.self, from: Data(json.utf8))
+        #expect(task.slackNotify == true)
+        #expect(task.slackMentions == nil)
+    }
+
+    @Test("Missing notify_on_failure in legacy YAML does not break decoding")
+    func legacyYamlWithoutSlackNotify() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lr-compat-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let yaml = """
+        id: legacy
+        name: Legacy Task
+        command: echo legacy
+        schedule:
+          type: daily
+          time: "09:00"
+        enabled: true
+        catch_up: true
+        """
+        try yaml.write(
+            to: dir.appendingPathComponent("legacy.yaml"),
+            atomically: true, encoding: .utf8
+        )
+
+        let store = TaskStore(directory: dir)
+        let tasks = store.loadAll()
+        #expect(tasks.count == 1)
+        #expect(tasks[0].slackNotify == true)
     }
 
     @Test("TaskDefinition with timeout encodes via IPCWireFormat")
@@ -63,7 +102,8 @@ struct TaskDefinitionFieldTests {
             schedule: .daily(time: "09:00"),
             enabled: false,
             catchUp: false,
-            notifyOnFailure: true,
+            slackNotify: false,
+            slackMentions: ["<!channel>"],
             timeout: 300
         )
         #expect(task.id == "my-task")
@@ -74,7 +114,8 @@ struct TaskDefinitionFieldTests {
         #expect(task.schedule.type == .daily)
         #expect(task.enabled == false)
         #expect(task.catchUp == false)
-        #expect(task.notifyOnFailure == true)
+        #expect(task.slackNotify == false)
+        #expect(task.slackMentions == ["<!channel>"])
         #expect(task.timeout == 300)
     }
 
@@ -86,7 +127,8 @@ struct TaskDefinitionFieldTests {
         #expect(task.schedule.type == .daily)
         #expect(task.enabled == true)
         #expect(task.catchUp == true)
-        #expect(task.notifyOnFailure == false)
+        #expect(task.slackNotify == true)
+        #expect(task.slackMentions == nil)
         #expect(task.timeout == nil)
     }
 
@@ -126,7 +168,7 @@ struct TaskStoreYAMLTests {
           time: "09:00"
         enabled: true
         catch_up: true
-        notify_on_failure: false
+        slack_notify: true
         """
         try yaml.write(
             to: dir.appendingPathComponent("my-task.yaml"),
@@ -155,7 +197,7 @@ struct TaskStoreYAMLTests {
           type: every_minute
         enabled: true
         catch_up: false
-        notify_on_failure: false
+        slack_notify: true
         """
         try yaml.write(
             to: dir.appendingPathComponent("filename-id.yaml"),
@@ -194,7 +236,7 @@ struct TaskStoreYAMLTests {
           type: daily
         enabled: true
         catch_up: true
-        notify_on_failure: false
+        slack_notify: true
         """
         try yaml.write(
             to: dir.appendingPathComponent("incomplete.yaml"),
@@ -219,7 +261,7 @@ struct TaskStoreYAMLTests {
           type: every_minute
         enabled: true
         catch_up: true
-        notify_on_failure: false
+        slack_notify: true
         """
         try validYaml.write(
             to: dir.appendingPathComponent("good.yaml"),
@@ -278,7 +320,7 @@ struct TaskStoreYAMLTests {
           type: every_minute
         enabled: true
         catch_up: true
-        notify_on_failure: false
+        slack_notify: true
         """
         try yaml.write(
             to: dir.appendingPathComponent("task1.yml"),
@@ -306,7 +348,8 @@ struct TaskStoreYAMLTests {
             schedule: .hourly(minute: 15),
             enabled: true,
             catchUp: false,
-            notifyOnFailure: true,
+            slackNotify: false,
+            slackMentions: ["<@U123>"],
             timeout: 60
         )
 

@@ -120,7 +120,8 @@ lr config get --json
 
 # 設定変更
 lr config set default_timeout 1800 --json
-lr config set slack_webhook_url "https://hooks.slack.com/..." --json
+lr config set slack_bot_token "xoxb-..." --json
+lr config set slack_channel "C1234567890" --json
 ```
 
 ### システムログ

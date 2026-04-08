@@ -7,7 +7,8 @@ export interface TaskDefinition {
   schedule: Schedule;
   enabled: boolean;
   catch_up: boolean;
-  notify_on_failure: boolean;
+  slack_notify: boolean;
+  slack_mentions?: string[];
   timeout?: number;
 }
 
@@ -43,7 +44,9 @@ export interface TaskStatus {
 }
 
 export interface GlobalSettings {
-  slack_webhook_url?: string;
+  slack_bot_token?: string;
+  slack_channel?: string;
+  slack_channel_name?: string;
   default_timeout?: number;
 }
 

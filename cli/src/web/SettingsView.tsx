@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { GlobalSettings, LogEntry } from "./types.ts";
 
 interface Props {
@@ -7,21 +7,54 @@ interface Props {
   onSave: (settings: GlobalSettings) => Promise<boolean>;
 }
 
+interface SlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+}
+
 // GlobalSettings.defaultTimeoutValue (Swift側) と同期させること
 const DEFAULT_TIMEOUT = 3600;
 
+/** Slack API エラーコードをユーザー向けメッセージに変換する。 */
+function slackErrorMessage(error: string): string {
+  switch (error) {
+    case "not_in_channel": return "Bot がチャンネルに参加していません。チャンネルで /invite @Bot名 を実行してください。";
+    case "channel_not_found": return "チャンネルが見つかりません。チャンネル ID を確認してください。";
+    case "invalid_auth": return "Bot Token が無効です。トークンを確認してください。";
+    case "token_revoked": return "Bot Token が無効化されています。新しいトークンを発行してください。";
+    case "missing_scope": return "Bot Token に必要なスコープがありません。chat:write, channels:read, users:read を確認してください。";
+    case "account_inactive": return "Bot のアカウントが無効です。Slack App の設定を確認してください。";
+    default: return error;
+  }
+}
+
 export function SettingsView({ settings, loading, onSave }: Props) {
-  const [webhookURL, setWebhookURL] = useState("");
+  const [botToken, setBotToken] = useState("");
+  const [slackChannel, setSlackChannel] = useState("");
+  const [slackChannelName, setSlackChannelName] = useState("");
   const [defaultTimeout, setDefaultTimeout] = useState(DEFAULT_TIMEOUT);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [showSystemLog, setShowSystemLog] = useState(false);
 
-  const initialized = useRef(false);
+  // チャンネル選択モード
+  const [channelPicking, setChannelPicking] = useState(false);
+  const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
 
+  // Test send
+  const [testStatus, setTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [testError, setTestError] = useState<string | null>(null);
+
+  // 初期化: settings が届いたら1回だけ state にセット
+  const initialized = useRef(false);
   useEffect(() => {
     if (!settings || initialized.current) return;
     initialized.current = true;
-    setWebhookURL(settings.slack_webhook_url ?? "");
+    setBotToken(settings.slack_bot_token ?? "");
+    setSlackChannel(settings.slack_channel ?? "");
+    setSlackChannelName(settings.slack_channel_name ?? "");
     setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
   }, [settings]);
 
@@ -38,14 +71,69 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     const timer = setTimeout(async () => {
       setSaveStatus("saving");
       const ok = await onSaveRef.current({
-        slack_webhook_url: webhookURL.trim() || undefined,
+        slack_bot_token: botToken.trim() || undefined,
+        slack_channel: slackChannel || undefined,
+        slack_channel_name: slackChannelName || undefined,
         default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
       });
       setSaveStatus(ok ? "saved" : "idle");
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [webhookURL, defaultTimeout]);
+  }, [botToken, slackChannel, slackChannelName, defaultTimeout]);
+
+  // 「変更」ボタン押下時にチャンネル一覧を取得
+  const handleStartPicking = useCallback(async () => {
+    setChannelPicking(true);
+    setChannelsLoading(true);
+    setChannelsError(null);
+    try {
+      const res = await fetch("/api/slack/channels");
+      const data = await res.json();
+      if (data.ok && data.channels) {
+        const sorted = (data.channels as SlackChannel[])
+          .sort((a: SlackChannel, b: SlackChannel) => a.name.localeCompare(b.name));
+        setChannels(sorted);
+      } else {
+        setChannelsError(slackErrorMessage(data.error ?? "チャンネルの取得に失敗しました"));
+      }
+    } catch {
+      setChannelsError("チャンネルの取得に失敗しました");
+    } finally {
+      setChannelsLoading(false);
+    }
+  }, []);
+
+  const handleChannelSelect = (channelId: string) => {
+    const ch = channels.find(c => c.id === channelId);
+    setSlackChannel(channelId);
+    setSlackChannelName(ch?.name ?? "");
+    setChannelPicking(false);
+  };
+
+  const handleTestSend = async () => {
+    if (!botToken || !slackChannel) return;
+    setTestStatus("sending");
+    setTestError(null);
+    try {
+      const res = await fetch("/api/slack/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: slackChannel }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTestStatus("ok");
+        setTimeout(() => setTestStatus("idle"), 3000);
+      } else {
+        setTestStatus("error");
+        setTestError(slackErrorMessage(data.error ?? "送信に失敗しました"));
+      }
+    } catch {
+      setTestStatus("error");
+      setTestError("送信に失敗しました");
+    }
+  };
 
   if (loading) return null;
 
@@ -87,18 +175,69 @@ export function SettingsView({ settings, loading, onSave }: Props) {
         <div className="settings-section">
           <h3 className="settings-section-title">Slack 通知</h3>
           <div className="settings-field">
-            <label className="settings-label">Webhook URL</label>
+            <label className="settings-label">Bot Token</label>
             <input
               className="form-input"
-              type="text"
-              value={webhookURL}
-              onChange={(e) => setWebhookURL(e.target.value)}
-              placeholder="https://hooks.slack.com/services/..."
+              type="password"
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+              placeholder="xoxb-..."
+              autoComplete="off"
+              data-1p-ignore
             />
             <div className="field-hint-small">
-              タスクの「失敗時に通知」が有効な場合、失敗・タイムアウト時にこの Webhook に通知が送信されます。
+              Slack App の Bot User OAuth Token を入力してください。
+              必要なスコープ: <code>chat:write</code>, <code>channels:read</code>, <code>users:read</code>
             </div>
           </div>
+          <div className="settings-field">
+            <label className="settings-label">通知先チャンネル</label>
+            {channelPicking ? (
+              channelsLoading ? (
+                <div className="field-hint-small">チャンネルを取得中...</div>
+              ) : channelsError ? (
+                <>
+                  <div className="field-error">{channelsError}</div>
+                  <button className="btn-small" onClick={() => setChannelPicking(false)}>キャンセル</button>
+                </>
+              ) : (
+                <select
+                  className="form-input"
+                  value={slackChannel}
+                  onChange={(e) => handleChannelSelect(e.target.value)}
+                  autoFocus
+                >
+                  <option value="">チャンネルを選択...</option>
+                  {channels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                  ))}
+                </select>
+              )
+            ) : (
+              <div className="settings-field-row">
+                <span className="settings-channel-display">
+                  {slackChannelName ? `#${slackChannelName}` : slackChannel || "(未設定)"}
+                </span>
+                {botToken && (
+                  <button className="btn-small" onClick={handleStartPicking}>変更</button>
+                )}
+              </div>
+            )}
+          </div>
+          {botToken && slackChannel && (
+            <div className="settings-field">
+              <button
+                className="btn-small"
+                onClick={handleTestSend}
+                disabled={testStatus === "sending"}
+              >
+                {testStatus === "sending" ? "送信中..." : testStatus === "ok" ? "\u2713 送信成功" : "テスト送信"}
+              </button>
+              {testStatus === "error" && testError && (
+                <div className="field-error">{testError}</div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="settings-section">

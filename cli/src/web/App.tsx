@@ -139,6 +139,7 @@ export function App() {
                 onStop={handleStop}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                slackConfigured={!!settings?.slack_bot_token}
               />
             )}
             {tab === "timeline" && <TimelineView history={history} />}

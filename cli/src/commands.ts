@@ -289,7 +289,10 @@ export async function showTask(taskId: string, json: boolean) {
     console.log(`スケジュール: ${formatSchedule(task.schedule)}`);
     console.log(`有効:         ${task.enabled ? "はい" : "いいえ"}`);
     console.log(`キャッチアップ: ${task.catch_up ? "はい" : "いいえ"}`);
-    console.log(`通知:         ${task.notify_on_failure ? "はい" : "いいえ"}`);
+    console.log(`Slack通知:    ${task.slack_notify ? "はい" : "いいえ"}`);
+    if (task.slack_mentions?.length) {
+      console.log(`メンション:   ${task.slack_mentions.join(", ")}`);
+    }
     console.log(`タイムアウト: ${task.timeout != null ? `${task.timeout}秒` : "(デフォルト)"}`);
     console.log(`状態:         ${state}`);
     console.log(`次回実行:     ${formatDate(t.nextRunAt)}`);
@@ -317,7 +320,7 @@ export async function createTask(flags: Set<string>, options: Map<string, string
     schedule,
     enabled: !flags.has("disabled"),
     catch_up: !flags.has("no-catch-up"),
-    notify_on_failure: flags.has("notify"),
+    slack_notify: !flags.has("no-notify"),
     timeout: options.has("timeout") ? parsePositiveInt(options.get("timeout")!, "--timeout") : undefined,
   };
 
@@ -359,8 +362,8 @@ export async function editTask(taskId: string, flags: Set<string>, options: Map<
     if (options.has("timeout")) task.timeout = parsePositiveInt(options.get("timeout")!, "--timeout");
     if (flags.has("catch-up")) task.catch_up = true;
     if (flags.has("no-catch-up")) task.catch_up = false;
-    if (flags.has("notify")) task.notify_on_failure = true;
-    if (flags.has("no-notify")) task.notify_on_failure = false;
+    if (flags.has("notify")) task.slack_notify = true;
+    if (flags.has("no-notify")) task.slack_notify = false;
     if (flags.has("disabled")) task.enabled = false;
 
     // Apply schedule edits
@@ -618,29 +621,39 @@ export async function configGet(json: boolean) {
 
     const s = res.settings;
     console.log(`デフォルトタイムアウト: ${s.default_timeout ?? 3600}秒`);
-    console.log(`Slack Webhook URL:     ${s.slack_webhook_url ?? "(未設定)"}`);
+    console.log(`Slack Bot Token:       ${s.slack_bot_token ? "(設定済み)" : "(未設定)"}`);
+    const channelDisplay = s.slack_channel_name ? `#${s.slack_channel_name} (${s.slack_channel})` : s.slack_channel;
+    console.log(`Slack Channel:         ${channelDisplay ?? "(未設定)"}`);
   });
 }
 
 export async function configSet(key: string, value: string, json: boolean) {
-  const settings: GlobalSettings = {};
-
-  switch (key) {
-    case "default_timeout":
-      settings.default_timeout = parsePositiveInt(value, "default_timeout");
-      break;
-    case "slack_webhook_url":
-      settings.slack_webhook_url = value;
-      break;
-    default:
-      throw new CLIError(
-        `不明な設定キー: ${key} (使用可能: default_timeout, slack_webhook_url)`,
-        EXIT.VALIDATION
-      );
+  const validKeys = ["default_timeout", "slack_bot_token", "slack_channel"];
+  if (!validKeys.includes(key)) {
+    throw new CLIError(
+      `不明な設定キー: ${key} (使用可能: ${validKeys.join(", ")})`,
+      EXIT.VALIDATION
+    );
   }
 
   await withClient(async (client) => {
-    const res = await client.send({ action: "update_settings", settings });
+    // 既存の設定を取得してマージ（部分更新で他の値が消えないようにする）
+    const getRes = await client.send({ action: "get_settings" });
+    const current: GlobalSettings = getRes.settings ?? {};
+
+    switch (key) {
+      case "default_timeout":
+        current.default_timeout = parsePositiveInt(value, "default_timeout");
+        break;
+      case "slack_bot_token":
+        current.slack_bot_token = value;
+        break;
+      case "slack_channel":
+        current.slack_channel = value;
+        break;
+    }
+
+    const res = await client.send({ action: "update_settings", settings: current });
     if (!res.success) {
       throw new CLIError(res.error ?? "設定の更新に失敗しました", EXIT.GENERAL);
     }

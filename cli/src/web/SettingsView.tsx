@@ -40,12 +40,21 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelsError, setChannelsError] = useState<string | null>(null);
+  const channelsFetchedRef = useRef(false);
 
   // Test send
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [testError, setTestError] = useState<string | null>(null);
 
+  // 初期化: settings が届いたら1回だけ state にセット
   const initialized = useRef(false);
+  useEffect(() => {
+    if (!settings || initialized.current) return;
+    initialized.current = true;
+    setBotToken(settings.slack_bot_token ?? "");
+    setSlackChannel(settings.slack_channel ?? "");
+    setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
+  }, [settings]);
 
   // チャンネル一覧を取得（サーバーが保存済みトークンを使用）
   const fetchChannels = useCallback(async () => {
@@ -70,26 +79,26 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     }
   }, []);
 
+  // 初期化完了後、トークンがあればチャンネルを1回だけ取得
   useEffect(() => {
-    if (!settings || initialized.current) return;
-    initialized.current = true;
-    setBotToken(settings.slack_bot_token ?? "");
-    setSlackChannel(settings.slack_channel ?? "");
-    setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
-    // トークンが設定済みならチャンネル一覧を取得
-    if (settings.slack_bot_token?.startsWith("xoxb-")) {
+    if (!initialized.current || channelsFetchedRef.current) return;
+    if (botToken.startsWith("xoxb-")) {
+      channelsFetchedRef.current = true;
       fetchChannels();
     }
-  }, [settings, fetchChannels]);
+  }, [botToken, fetchChannels]);
 
   // Auto-save on change (debounced)
   const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; });
   const isFirstRender = useRef(true);
+  const prevTokenForFetchRef = useRef(botToken);
 
   useEffect(() => {
     if (!initialized.current) return;
     if (isFirstRender.current) { isFirstRender.current = false; return; }
+
+    const tokenChanged = botToken !== prevTokenForFetchRef.current;
 
     setSaveStatus("idle");
     const timer = setTimeout(async () => {
@@ -100,30 +109,15 @@ export function SettingsView({ settings, loading, onSave }: Props) {
         default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
       });
       setSaveStatus(ok ? "saved" : "idle");
-      // トークン保存後にチャンネル一覧を取得（needsFetchChannels フラグで制御）
-      if (ok && needsFetchChannelsRef.current) {
-        needsFetchChannelsRef.current = false;
+      // トークンが変わって保存成功したらチャンネル再取得
+      if (ok && tokenChanged && botToken.startsWith("xoxb-")) {
+        prevTokenForFetchRef.current = botToken;
         fetchChannels();
       }
     }, 600);
 
     return () => clearTimeout(timer);
   }, [botToken, slackChannel, defaultTimeout, fetchChannels]);
-
-  // トークンが変わったらフラグを立てる（実際の取得は auto-save 完了後）
-  const needsFetchChannelsRef = useRef(false);
-  const prevTokenRef = useRef(botToken);
-  useEffect(() => {
-    if (!initialized.current) return;
-    if (botToken !== prevTokenRef.current) {
-      prevTokenRef.current = botToken;
-      if (botToken.startsWith("xoxb-")) {
-        needsFetchChannelsRef.current = true;
-      } else {
-        setChannels([]);
-      }
-    }
-  }, [botToken]);
 
   const handleTestSend = async () => {
     if (!botToken || !slackChannel) return;

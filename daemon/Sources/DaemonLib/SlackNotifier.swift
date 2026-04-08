@@ -44,7 +44,6 @@ public final class SlackNotifier: @unchecked Sendable {
               let channel = channel, !channel.isEmpty else { return }
 
         let emoji = record.status == .success ? ":white_check_mark:" : record.status == .timeout ? ":alarm_clock:" : ":x:"
-        let statusText = record.status == .success ? "成功" : record.status == .timeout ? "タイムアウト" : "失敗"
 
         // メンション文字列を組み立て
         let mentionLine: String
@@ -54,7 +53,7 @@ public final class SlackNotifier: @unchecked Sendable {
             mentionLine = ""
         }
 
-        let header = "\(emoji) *タスク\(statusText): \(Self.escapeSlack(task.name))*"
+        let header = "\(emoji) タスク: \(Self.escapeSlack(task.name))"
         let trimmedCommand = task.command.trimmingCharacters(in: .whitespacesAndNewlines)
         let commandField = "• コマンド:\n```\n\(Self.escapeSlack(trimmedCommand))\n```"
         let details = [

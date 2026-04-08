@@ -58,35 +58,38 @@ public final class SlackNotifier: @unchecked Sendable {
         }
     }
 
-    /// スレッドに実行ログを追記する。
-    private func postLogToThread(token: String, channel: String, threadTs: String, record: ExecutionRecord) {
-        // Slack section block の text は最大3000文字。余裕を見て各1200文字に制限。
-        let stdoutPreview = String(record.stdout.prefix(1200))
-        let stderrPreview = String(record.stderr.prefix(1200))
+    /// Slack section block の text 上限（3000文字）からマークダウン装飾分を差し引いた安全な上限。
+    private static let logPreviewLimit = 2800
 
-        var logParts: [String] = []
+    /// スレッドに実行ログを追記する。stdout / stderr を別々の block に分けて投稿。
+    private func postLogToThread(token: String, channel: String, threadTs: String, record: ExecutionRecord) {
+        let stdoutPreview = String(record.stdout.prefix(Self.logPreviewLimit))
+        let stderrPreview = String(record.stderr.prefix(Self.logPreviewLimit))
+
+        var blocks: [[String: Any]] = []
+        var textParts: [String] = []
+
         if !stdoutPreview.isEmpty {
-            logParts.append("*stdout:*\n```\n\(Self.escapeSlack(stdoutPreview))\n```")
+            let text = "*stdout:*\n```\n\(Self.escapeSlack(stdoutPreview))\n```"
+            blocks.append(["type": "section", "text": ["type": "mrkdwn", "text": text]])
+            textParts.append(text)
         }
         if !stderrPreview.isEmpty {
-            logParts.append("*stderr:*\n```\n\(Self.escapeSlack(stderrPreview))\n```")
+            let text = "*stderr:*\n```\n\(Self.escapeSlack(stderrPreview))\n```"
+            blocks.append(["type": "section", "text": ["type": "mrkdwn", "text": text]])
+            textParts.append(text)
         }
-        if logParts.isEmpty {
-            logParts.append("_(出力なし)_")
+        if blocks.isEmpty {
+            let text = "_(出力なし)_"
+            blocks.append(["type": "section", "text": ["type": "mrkdwn", "text": text]])
+            textParts.append(text)
         }
-
-        let logText = logParts.joined(separator: "\n")
 
         let payload: [String: Any] = [
             "channel": channel,
             "thread_ts": threadTs,
-            "text": logText,
-            "blocks": [
-                [
-                    "type": "section",
-                    "text": ["type": "mrkdwn", "text": logText]
-                ],
-            ],
+            "text": textParts.joined(separator: "\n"),
+            "blocks": blocks,
         ]
 
         postMessage(token: token, payload: payload)

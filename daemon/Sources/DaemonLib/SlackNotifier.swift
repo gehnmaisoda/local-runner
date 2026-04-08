@@ -8,6 +8,17 @@ public final class SlackNotifier: @unchecked Sendable {
 
     private static let apiURL = URL(string: "https://slack.com/api/chat.postMessage")!
 
+    /// Slack API エラーコードに対するヒントを返す。
+    static func errorHint(_ code: String) -> String {
+        switch code {
+        case "not_in_channel": return " — Bot がチャンネルに参加していません。/invite @Bot名 を実行してください"
+        case "channel_not_found": return " — チャンネルが見つかりません"
+        case "invalid_auth": return " — Bot Token が無効です"
+        case "token_revoked": return " — Bot Token が無効化されています"
+        default: return ""
+        }
+    }
+
     /// Slack mrkdwn の特殊文字をエスケープする。
     static func escapeSlack(_ str: String) -> String {
         str.replacingOccurrences(of: "&", with: "&amp;")
@@ -129,8 +140,9 @@ public final class SlackNotifier: @unchecked Sendable {
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let ok = json["ok"] as? Bool {
                 if !ok {
-                    let errMsg = json["error"] as? String ?? "unknown"
-                    Log.info("Slack", "API エラー: \(errMsg)")
+                    let errCode = json["error"] as? String ?? "unknown"
+                    let hint = Self.errorHint(errCode)
+                    Log.info("Slack", "API エラー: \(errCode)\(hint)")
                     completion?(nil)
                 } else {
                     let ts = json["ts"] as? String

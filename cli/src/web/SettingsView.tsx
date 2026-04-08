@@ -16,6 +16,19 @@ interface SlackChannel {
 // GlobalSettings.defaultTimeoutValue (Swift側) と同期させること
 const DEFAULT_TIMEOUT = 3600;
 
+/** Slack API エラーコードをユーザー向けメッセージに変換する。 */
+function slackErrorMessage(error: string): string {
+  switch (error) {
+    case "not_in_channel": return "Bot がチャンネルに参加していません。チャンネルで /invite @Bot名 を実行してください。";
+    case "channel_not_found": return "チャンネルが見つかりません。チャンネル ID を確認してください。";
+    case "invalid_auth": return "Bot Token が無効です。トークンを確認してください。";
+    case "token_revoked": return "Bot Token が無効化されています。新しいトークンを発行してください。";
+    case "missing_scope": return "Bot Token に必要なスコープがありません。chat:write, channels:read, users:read を確認してください。";
+    case "account_inactive": return "Bot のアカウントが無効です。Slack App の設定を確認してください。";
+    default: return error;
+  }
+}
+
 export function SettingsView({ settings, loading, onSave }: Props) {
   const [botToken, setBotToken] = useState("");
   const [slackChannel, setSlackChannel] = useState("");
@@ -46,7 +59,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
           .sort((a: SlackChannel, b: SlackChannel) => a.name.localeCompare(b.name));
         setChannels(sorted);
       } else {
-        setChannelsError(data.error ?? "チャンネルの取得に失敗しました");
+        setChannelsError(slackErrorMessage(data.error ?? "チャンネルの取得に失敗しました"));
         setChannels([]);
       }
     } catch {
@@ -128,7 +141,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
         setTimeout(() => setTestStatus("idle"), 3000);
       } else {
         setTestStatus("error");
-        setTestError(data.error ?? "送信に失敗しました");
+        setTestError(slackErrorMessage(data.error ?? "送信に失敗しました"));
       }
     } catch {
       setTestStatus("error");

@@ -71,7 +71,11 @@ export async function checkForUpdates(currentVersion: string): Promise<void> {
 
     let latestVersion: string | null = null;
 
-    if (cache && now - cache.lastChecked < CHECK_INTERVAL_MS) {
+    // キャッシュが有効 & 新バージョンが既知ならキャッシュを使う。
+    // キャッシュの latest が現在バージョンと同じ場合は再フェッチする
+    // （リリース直後にキャッシュが古い値を返し続けるのを防ぐ）。
+    if (cache && now - cache.lastChecked < CHECK_INTERVAL_MS
+        && isNewer(cache.latestVersion, currentVersion)) {
       latestVersion = cache.latestVersion;
     } else {
       latestVersion = await fetchLatestVersion();

@@ -37,8 +37,10 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   const [showSystemLog, setShowSystemLog] = useState(false);
 
   // Slack channel picker
+  // トークンが既に設定されている場合、初期状態を loading にしてちらつきを防ぐ
+  const hasTokenOnMount = useRef(!!settings?.slack_bot_token);
   const [channels, setChannels] = useState<SlackChannel[]>([]);
-  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsLoading, setChannelsLoading] = useState(hasTokenOnMount.current);
   const [channelsError, setChannelsError] = useState<string | null>(null);
   const channelsFetchedRef = useRef(false);
 

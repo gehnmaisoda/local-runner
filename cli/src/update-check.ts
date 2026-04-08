@@ -1,16 +1,4 @@
-import { homedir } from "os";
-import { join } from "path";
-
-const isDev = process.env.LOCAL_RUNNER_DEV === "1";
-const appName = isDev ? "LocalRunner-Dev" : "LocalRunner";
-const CACHE_PATH = join(homedir(), "Library", "Application Support", appName, "update-check.json");
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REPO = "gehnmaisoda/local-runner";
-
-interface CacheData {
-  lastChecked: number;
-  latestVersion: string;
-}
 
 export function parseVersion(v: string): number[] {
   return v.replace(/^v/, "").split(".").map(Number);
@@ -26,24 +14,6 @@ export function isNewer(latest: string, current: string): boolean {
     if (lv < cv) return false;
   }
   return false;
-}
-
-async function readCache(): Promise<CacheData | null> {
-  try {
-    const file = Bun.file(CACHE_PATH);
-    if (!(await file.exists())) return null;
-    return await file.json();
-  } catch {
-    return null;
-  }
-}
-
-async function writeCache(data: CacheData): Promise<void> {
-  try {
-    await Bun.write(CACHE_PATH, JSON.stringify(data));
-  } catch {
-    // best-effort
-  }
 }
 
 async function fetchLatestVersion(): Promise<string | null> {
@@ -66,23 +36,7 @@ async function fetchLatestVersion(): Promise<string | null> {
  */
 export async function checkForUpdates(currentVersion: string): Promise<void> {
   try {
-    const cache = await readCache();
-    const now = Date.now();
-
-    let latestVersion: string | null = null;
-
-    // キャッシュが有効 & 新バージョンが既知ならキャッシュを使う。
-    // キャッシュの latest が現在バージョンと同じ場合は再フェッチする
-    // （リリース直後にキャッシュが古い値を返し続けるのを防ぐ）。
-    if (cache && now - cache.lastChecked < CHECK_INTERVAL_MS
-        && isNewer(cache.latestVersion, currentVersion)) {
-      latestVersion = cache.latestVersion;
-    } else {
-      latestVersion = await fetchLatestVersion();
-      if (latestVersion) {
-        await writeCache({ lastChecked: now, latestVersion });
-      }
-    }
+    const latestVersion = await fetchLatestVersion();
 
     if (latestVersion && isNewer(latestVersion, currentVersion)) {
       console.error(

@@ -157,6 +157,42 @@ async function handleAPI(req: Request): Promise<Response> {
       return Response.json(res);
     }
 
+    // --- Slack API proxy (CORS 回避) ---
+    // トークンは保存済みの設定から取得する（クエリパラメータに露出させない）
+
+    if (path === "/api/slack/channels" && req.method === "GET") {
+      const token = await getSlackToken();
+      if (!token) return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+      return slackProxy(token, "https://slack.com/api/conversations.list", {
+        types: "public_channel",
+        exclude_archived: "true",
+        limit: "200",
+      });
+    }
+
+    if (path === "/api/slack/users" && req.method === "GET") {
+      const token = await getSlackToken();
+      if (!token) return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+      return slackProxy(token, "https://slack.com/api/users.list", { limit: "200" });
+    }
+
+    if (path === "/api/slack/test" && req.method === "POST") {
+      const body = await parseJsonBody(req);
+      if (body instanceof Response) return body;
+      const { channel } = body as { channel?: string };
+      if (!channel) {
+        return Response.json({ ok: false, error: "channel が必要です" }, { status: 400 });
+      }
+      const token = await getSlackToken();
+      if (!token) {
+        return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+      }
+      return slackProxy(token, "https://slack.com/api/chat.postMessage", {}, {
+        channel,
+        text: ":white_check_mark: LocalRunner テスト通知\nSlack 連携が正しく設定されています。",
+      });
+    }
+
     return Response.json({ error: "見つかりません" }, { status: 404 });
   } catch (err) {
     return Response.json(
@@ -218,4 +254,47 @@ export async function startServer(preferredPort?: number) {
   Bun.spawn(["open", url], { stdout: "ignore", stderr: "ignore" });
 
   return server;
+}
+
+// --- Slack API helpers ---
+
+/** 保存済みの設定から Slack Bot Token を取得する。 */
+async function getSlackToken(): Promise<string | null> {
+  try {
+    const res = await sendToIPC({ action: "get_settings" });
+    return res.settings?.slack_bot_token || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Slack API をプロキシする。GET の場合は params をクエリ文字列に、jsonBody がある場合は POST で送信。 */
+async function slackProxy(
+  token: string,
+  apiUrl: string,
+  params: Record<string, string>,
+  jsonBody?: Record<string, unknown>,
+): Promise<Response> {
+  try {
+    const qs = new URLSearchParams(params).toString();
+    const url = qs ? `${apiUrl}?${qs}` : apiUrl;
+    const options: RequestInit = {
+      headers: { Authorization: `Bearer ${token}` },
+    };
+    if (jsonBody) {
+      options.method = "POST";
+      options.headers = {
+        ...options.headers,
+        "Content-Type": "application/json; charset=utf-8",
+      };
+      options.body = JSON.stringify(jsonBody);
+    }
+    const res = await fetch(url, options);
+    return Response.json(await res.json());
+  } catch (err) {
+    return Response.json(
+      { ok: false, error: `Slack API への接続に失敗: ${err}` },
+      { status: 502 },
+    );
+  }
 }

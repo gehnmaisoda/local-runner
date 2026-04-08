@@ -12,7 +12,8 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
     public var schedule: Schedule
     public var enabled: Bool
     public var catchUp: Bool
-    public var notifyOnFailure: Bool
+    public var slackNotify: Bool
+    public var slackMentions: [String]?
     public var timeout: Int?
 
     public init(
@@ -24,7 +25,8 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         schedule: Schedule = .daily(),
         enabled: Bool = true,
         catchUp: Bool = true,
-        notifyOnFailure: Bool = false,
+        slackNotify: Bool = true,
+        slackMentions: [String]? = nil,
         timeout: Int? = nil
     ) {
         self.id = id
@@ -35,7 +37,8 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         self.schedule = schedule
         self.enabled = enabled
         self.catchUp = catchUp
-        self.notifyOnFailure = notifyOnFailure
+        self.slackNotify = slackNotify
+        self.slackMentions = slackMentions
         self.timeout = timeout
     }
 
@@ -44,7 +47,8 @@ public struct TaskDefinition: Codable, Sendable, Identifiable, Equatable {
         case workingDirectory = "working_directory"
         case schedule, enabled
         case catchUp = "catch_up"
-        case notifyOnFailure = "notify_on_failure"
+        case slackNotify = "slack_notify"
+        case slackMentions = "slack_mentions"
         case timeout
     }
 }
@@ -131,7 +135,8 @@ public final class TaskStore: @unchecked Sendable {
             schedule: decoded.schedule,
             enabled: decoded.enabled,
             catchUp: decoded.catchUp,
-            notifyOnFailure: decoded.notifyOnFailure,
+            slackNotify: decoded.slackNotify,
+            slackMentions: decoded.slackMentions,
             timeout: decoded.timeout
         )
     }

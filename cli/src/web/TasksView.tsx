@@ -255,7 +255,8 @@ interface TaskFormState {
   dirError: string | null; setDirError: (v: string | null) => void;
   dirValidating: React.MutableRefObject<boolean>;
   catchUp: boolean; setCatchUp: (v: boolean) => void;
-  notifyOnFailure: boolean; setNotifyOnFailure: (v: boolean) => void;
+  slackNotify: boolean; setSlackNotify: (v: boolean) => void;
+  slackMentions: string[]; setSlackMentions: (v: string[]) => void;
   timeout: number; setTimeout_: (v: number) => void;
   scheduleType: string; setScheduleType: (v: string) => void;
   hour: number; setHour: (v: number) => void;
@@ -272,7 +273,8 @@ function useTaskForm(task?: TaskDefinition): TaskFormState {
   const [dirError, setDirError] = useState<string | null>(null);
   const dirValidating = useRef(false);
   const [catchUp, setCatchUp] = useState(task?.catch_up ?? true);
-  const [notifyOnFailure, setNotifyOnFailure] = useState(task?.notify_on_failure ?? false);
+  const [slackNotify, setSlackNotify] = useState(task?.slack_notify ?? true);
+  const [slackMentions, setSlackMentions] = useState<string[]>(task?.slack_mentions ?? []);
   const [timeout, setTimeout_] = useState(task?.timeout ?? 0);
 
   const [scheduleType, setScheduleType] = useState(task?.schedule.type ?? "daily");
@@ -308,7 +310,7 @@ function useTaskForm(task?: TaskDefinition): TaskFormState {
   return {
     name, setName, command, setCommand,
     workingDirectory, setWorkingDirectory, dirError, setDirError, dirValidating,
-    catchUp, setCatchUp, notifyOnFailure, setNotifyOnFailure, timeout, setTimeout_,
+    catchUp, setCatchUp, slackNotify, setSlackNotify, slackMentions, setSlackMentions, timeout, setTimeout_,
     scheduleType, setScheduleType, hour, setHour, minute, setMinute,
     weekdays, toggleWeekday, monthDays, toggleMonthDay, cronExpr, setCronExpr,
   };
@@ -323,7 +325,8 @@ function buildTaskObj(form: TaskFormState, id: string, enabled: boolean): TaskDe
     schedule: buildSchedule(form.scheduleType, form.hour, form.minute, form.weekdays, form.monthDays, form.cronExpr),
     enabled,
     catch_up: form.catchUp,
-    notify_on_failure: form.notifyOnFailure,
+    slack_notify: form.slackNotify,
+    slack_mentions: form.slackMentions.length > 0 ? form.slackMentions : undefined,
     timeout: form.timeout > 0 ? form.timeout : undefined,
   };
 }
@@ -508,10 +511,6 @@ function TaskFormFields({ form }: { form: TaskFormState }) {
               </span>
             </span>
           </label>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={form.notifyOnFailure} onChange={(e) => form.setNotifyOnFailure(e.target.checked)} />
-            失敗時に通知 (Slack)
-          </label>
         </div>
         <div className="timeout-row">
           <label className="detail-label-inline">タイムアウト</label>
@@ -535,7 +534,122 @@ function TaskFormFields({ form }: { form: TaskFormState }) {
           </span>
         </div>
       </div>
+
+      <div className="detail-section">
+        <label className="detail-label">Slack 通知</label>
+        <div className="checkbox-group">
+          <label className="checkbox-label">
+            <input type="checkbox" checked={form.slackNotify} onChange={(e) => form.setSlackNotify(e.target.checked)} />
+            タスク完了時に Slack に通知する
+          </label>
+          {form.slackNotify && (
+            <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.slackMentions.includes("<!channel>")}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      form.setSlackMentions([...form.slackMentions, "<!channel>"]);
+                    } else {
+                      form.setSlackMentions(form.slackMentions.filter(m => m !== "<!channel>"));
+                    }
+                  }}
+                />
+                @channel でメンション
+              </label>
+              <SlackUserMentions mentions={form.slackMentions} onChange={form.setSlackMentions} />
+            </>
+          )}
+        </div>
+      </div>
     </>
+  );
+}
+
+// --- Slack User Mentions ---
+
+interface SlackUser {
+  id: string;
+  name: string;
+  real_name?: string;
+  is_bot: boolean;
+  deleted: boolean;
+}
+
+function SlackUserMentions({ mentions, onChange }: {
+  mentions: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [users, setUsers] = useState<SlackUser[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  const userMentions = mentions.filter(m => m.startsWith("<@") && m.endsWith(">"));
+  const userIds = userMentions.map(m => m.slice(2, -1));
+
+  const fetchUsers = useCallback(async () => {
+    if (loaded) return;
+    try {
+      const res = await fetch("/api/slack/users");
+      const data = await res.json();
+      if (data.ok && data.members) {
+        setUsers(
+          (data.members as SlackUser[])
+            .filter((u: SlackUser) => !u.is_bot && !u.deleted && u.id !== "USLACKBOT")
+            .sort((a: SlackUser, b: SlackUser) => (a.real_name ?? a.name).localeCompare(b.real_name ?? b.name))
+        );
+      }
+    } catch { /* ignore */ }
+    setLoaded(true);
+  }, [loaded]);
+
+  const handleAdd = () => {
+    setAdding(true);
+    fetchUsers();
+  };
+
+  const handleSelect = (userId: string) => {
+    if (!userIds.includes(userId)) {
+      onChange([...mentions, `<@${userId}>`]);
+    }
+    setAdding(false);
+  };
+
+  const handleRemove = (userId: string) => {
+    onChange(mentions.filter(m => m !== `<@${userId}>`));
+  };
+
+  return (
+    <div className="slack-user-mentions">
+      {userIds.map(uid => {
+        const user = users.find(u => u.id === uid);
+        return (
+          <span key={uid} className="mention-chip">
+            @{user ? (user.real_name ?? user.name) : uid}
+            <button className="mention-chip-remove" onClick={() => handleRemove(uid)}>&times;</button>
+          </span>
+        );
+      })}
+      {adding ? (
+        <select
+          className="form-input mention-select"
+          autoFocus
+          onChange={(e) => { if (e.target.value) handleSelect(e.target.value); }}
+          onBlur={() => setAdding(false)}
+          defaultValue=""
+        >
+          <option value="">ユーザーを選択...</option>
+          {users.filter(u => !userIds.includes(u.id)).map(u => (
+            <option key={u.id} value={u.id}>
+              {u.real_name ?? u.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <button className="btn-small" type="button" onClick={handleAdd}>+ ユーザーを追加</button>
+      )}
+    </div>
   );
 }
 
@@ -603,7 +717,7 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete }: 
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id, form.name, form.command, form.workingDirectory, form.scheduleType, form.hour, form.minute, JSON.stringify(form.weekdays), JSON.stringify(form.monthDays), form.cronExpr, form.catchUp, form.notifyOnFailure, form.timeout]);
+  }, [task.id, form.name, form.command, form.workingDirectory, form.scheduleType, form.hour, form.minute, JSON.stringify(form.weekdays), JSON.stringify(form.monthDays), form.cronExpr, form.catchUp, form.slackNotify, JSON.stringify(form.slackMentions), form.timeout]);
 
   return (
     <div className="detail-panel">

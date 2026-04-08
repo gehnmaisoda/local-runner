@@ -202,10 +202,11 @@ struct IPCRequestFactoryTests {
 
     @Test("updateSettings includes settings")
     func updateSettings() {
-        let settings = GlobalSettings(slackWebhookURL: "https://example.com", defaultTimeout: 120)
+        let settings = GlobalSettings(slackBotToken: "xoxb-test", slackChannel: "C123", defaultTimeout: 120)
         let req = IPCRequest.updateSettings(settings)
         #expect(req.action == "update_settings")
-        #expect(req.settings?.slackWebhookURL == "https://example.com")
+        #expect(req.settings?.slackBotToken == "xoxb-test")
+        #expect(req.settings?.slackChannel == "C123")
         #expect(req.settings?.defaultTimeout == 120)
     }
 

@@ -182,7 +182,8 @@ const HELP: Record<string, string> = {
 
 設定キー:
   default_timeout      デフォルトタイムアウト (秒)
-  slack_webhook_url    Slack Webhook URL
+  slack_bot_token      Slack Bot Token (xoxb-...)
+  slack_channel        Slack 通知先チャンネル ID
 
 オプション:
   --json   JSON で出力
@@ -190,7 +191,8 @@ const HELP: Record<string, string> = {
 例:
   lr config get
   lr config set default_timeout 1800
-  lr config set slack_webhook_url "https://hooks.slack.com/services/..."`,
+  lr config set slack_bot_token "xoxb-..."
+  lr config set slack_channel "C1234567890"`,
 
   syslog: `デーモンのシステムログを表示します。
 

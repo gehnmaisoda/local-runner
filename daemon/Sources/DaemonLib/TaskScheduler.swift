@@ -46,7 +46,8 @@ public final class TaskScheduler: @unchecked Sendable {
         // 起動時に設定を読み込んで反映
         let settings = loadSettings()
         lock.withLock { cachedSettings = settings }
-        slackNotifier.webhookURL = settings.slackWebhookURL
+        slackNotifier.botToken = settings.slackBotToken
+        slackNotifier.channel = settings.slackChannel
 
         // ネットワーク監視を起動
         networkMonitor.onRestore = { [weak self] in
@@ -123,7 +124,8 @@ public final class TaskScheduler: @unchecked Sendable {
                 schedule: tasks[idx].schedule,
                 enabled: !tasks[idx].enabled,
                 catchUp: tasks[idx].catchUp,
-                notifyOnFailure: tasks[idx].notifyOnFailure,
+                slackNotify: tasks[idx].slackNotify,
+                slackMentions: tasks[idx].slackMentions,
                 timeout: tasks[idx].timeout
             )
             recalculateFireDatesLocked()
@@ -255,7 +257,8 @@ public final class TaskScheduler: @unchecked Sendable {
         let yaml = try YAMLEncoder().encode(settings)
         try yaml.write(to: ConfigPaths.settingsFile, atomically: true, encoding: .utf8)
         lock.withLock { cachedSettings = settings }
-        slackNotifier.webhookURL = settings.slackWebhookURL
+        slackNotifier.botToken = settings.slackBotToken
+        slackNotifier.channel = settings.slackChannel
     }
 
     // MARK: - Private
@@ -366,8 +369,9 @@ public final class TaskScheduler: @unchecked Sendable {
             self.logStore.update(finalRecord)
             self.onNotification?(.taskCompleted(task.id, record: finalRecord))
 
-            if (finalRecord.status == .failure || finalRecord.status == .timeout) && task.notifyOnFailure {
-                self.slackNotifier.notifyFailure(task: task, record: finalRecord)
+            // 手動停止の場合は通知しない
+            if task.slackNotify && finalRecord.status != .stopped {
+                self.slackNotifier.notifyCompletion(task: task, record: finalRecord)
             }
 
             let duration = finalRecord.durationText

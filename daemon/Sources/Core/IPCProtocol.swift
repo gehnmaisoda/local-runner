@@ -142,13 +142,15 @@ public struct IPCNotification: Codable, Sendable {
 
 /// アプリ全体の設定。
 public struct GlobalSettings: Codable, Sendable, Equatable {
-    public var slackWebhookURL: String?
+    public var slackBotToken: String?
+    public var slackChannel: String?
     public var defaultTimeout: Int?
 
     public static let defaultTimeoutValue = 3600
 
-    public init(slackWebhookURL: String? = nil, defaultTimeout: Int? = nil) {
-        self.slackWebhookURL = slackWebhookURL
+    public init(slackBotToken: String? = nil, slackChannel: String? = nil, defaultTimeout: Int? = nil) {
+        self.slackBotToken = slackBotToken
+        self.slackChannel = slackChannel
         self.defaultTimeout = defaultTimeout
     }
 
@@ -158,7 +160,8 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case slackWebhookURL = "slack_webhook_url"
+        case slackBotToken = "slack_bot_token"
+        case slackChannel = "slack_channel"
         case defaultTimeout = "default_timeout"
     }
 }

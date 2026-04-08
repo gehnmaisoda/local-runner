@@ -8,15 +8,17 @@ import Foundation
 private func makeTask(
     id: String = "test-task",
     name: String = "Test Task",
-    command: String = "echo test"
+    command: String = "echo test",
+    slackMentions: [String]? = nil
 ) -> TaskDefinition {
-    TaskDefinition(id: id, name: name, command: command, notifyOnFailure: true)
+    TaskDefinition(id: id, name: name, command: command, slackNotify: true, slackMentions: slackMentions)
 }
 
 private func makeRecord(
     taskId: String = "test-task",
     status: ExecutionStatus = .failure,
     exitCode: Int32 = 1,
+    stdout: String = "",
     stderr: String = "Error: something went wrong"
 ) -> ExecutionRecord {
     ExecutionRecord(
@@ -26,6 +28,7 @@ private func makeRecord(
         startedAt: Date(),
         finishedAt: Date(),
         exitCode: exitCode,
+        stdout: stdout,
         stderr: stderr,
         status: status
     )
@@ -35,47 +38,93 @@ private func makeRecord(
 
 @Suite("SlackNotifier - behavior")
 struct SlackNotifierBehaviorTests {
-    @Test("No webhook URL means notification is silently skipped")
-    func noWebhookURL() {
+    @Test("No bot token means notification is silently skipped")
+    func noBotToken() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = nil
+        notifier.botToken = nil
+        notifier.channel = "C123"
         let task = makeTask()
         let record = makeRecord()
-        // Should not crash, just return silently
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Empty webhook URL means notification is silently skipped")
-    func emptyWebhookURL() {
+    @Test("Empty bot token means notification is silently skipped")
+    func emptyBotToken() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = ""
+        notifier.botToken = ""
+        notifier.channel = "C123"
         let task = makeTask()
         let record = makeRecord()
-        // Empty string is not a valid URL, so URL(string:) returns nil
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Invalid webhook URL means notification is silently skipped")
-    func invalidWebhookURL() {
+    @Test("No channel means notification is silently skipped")
+    func noChannel() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "not a valid url %%"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = nil
         let task = makeTask()
         let record = makeRecord()
-        // Should not crash
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("webhookURL can be set and read")
-    func setWebhookURL() {
+    @Test("botToken can be set and read")
+    func setBotToken() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-        #expect(notifier.webhookURL == "https://hooks.slack.com/services/XXX/YYY/ZZZ")
+        notifier.botToken = "xoxb-test-token"
+        #expect(notifier.botToken == "xoxb-test-token")
     }
 
-    @Test("webhookURL defaults to nil")
-    func defaultWebhookURL() {
+    @Test("botToken defaults to nil")
+    func defaultBotToken() {
         let notifier = SlackNotifier()
-        #expect(notifier.webhookURL == nil)
+        #expect(notifier.botToken == nil)
+    }
+
+    @Test("channel defaults to nil")
+    func defaultChannel() {
+        let notifier = SlackNotifier()
+        #expect(notifier.channel == nil)
+    }
+}
+
+// MARK: - escapeSlack tests
+
+@Suite("SlackNotifier - escapeSlack")
+struct SlackEscapeTests {
+    @Test("Ampersand is escaped")
+    func ampersand() {
+        #expect(SlackNotifier.escapeSlack("a & b") == "a &amp; b")
+    }
+
+    @Test("Less-than is escaped")
+    func lessThan() {
+        #expect(SlackNotifier.escapeSlack("<html>") == "&lt;html&gt;")
+    }
+
+    @Test("Greater-than is escaped")
+    func greaterThan() {
+        #expect(SlackNotifier.escapeSlack("a > b") == "a &gt; b")
+    }
+
+    @Test("Multiple special characters are all escaped")
+    func multipleSpecialChars() {
+        let input = "curl 'https://api.example.com?a=1&b=2' | grep '<html>'"
+        let result = SlackNotifier.escapeSlack(input)
+        #expect(!result.contains("&b"))
+        #expect(result.contains("&amp;"))
+        #expect(result.contains("&lt;"))
+        #expect(result.contains("&gt;"))
+    }
+
+    @Test("String without special characters is unchanged")
+    func noSpecialChars() {
+        #expect(SlackNotifier.escapeSlack("hello world") == "hello world")
+    }
+
+    @Test("Empty string returns empty")
+    func emptyString() {
+        #expect(SlackNotifier.escapeSlack("") == "")
     }
 }
 
@@ -83,66 +132,73 @@ struct SlackNotifierBehaviorTests {
 
 @Suite("SlackNotifier - payload structure")
 struct SlackNotifierPayloadTests {
-    // We test the escaping logic and payload generation indirectly
-
     @Test("Task name with special characters does not crash")
     func specialCharacterTaskName() {
         let notifier = SlackNotifier()
-        // Use a non-routable URL that won't actually send
-        notifier.webhookURL = "http://127.0.0.1:1/test"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
         let task = makeTask(name: "Task <with> &special& chars")
         let record = makeRecord()
-        // Should not crash even with special characters
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Long stderr is truncated in notification")
-    func longStderrTruncated() {
+    @Test("Long stderr does not crash")
+    func longStderr() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "http://127.0.0.1:1/test"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
         let task = makeTask()
-        let longStderr = String(repeating: "E", count: 1000)
-        let record = makeRecord(stderr: longStderr)
-        // The preview should be at most 500 characters (internal implementation detail)
-        // This test just ensures it doesn't crash with long stderr
-        notifier.notifyFailure(task: task, record: record)
+        let record = makeRecord(stderr: String(repeating: "E", count: 5000))
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Timeout status uses alarm clock emoji header")
-    func timeoutHeader() {
+    @Test("Success status uses check mark emoji")
+    func successStatus() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "http://127.0.0.1:1/test"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
+        let task = makeTask()
+        let record = makeRecord(status: .success, exitCode: 0)
+        notifier.notifyCompletion(task: task, record: record)
+    }
+
+    @Test("Timeout status uses alarm clock emoji")
+    func timeoutStatus() {
+        let notifier = SlackNotifier()
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
         let task = makeTask()
         let record = makeRecord(status: .timeout, exitCode: -1)
-        // Should use timeout-specific header, not crash
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Failure status uses X emoji header")
-    func failureHeader() {
+    @Test("Mentions are included in notification")
+    func withMentions() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "http://127.0.0.1:1/test"
-        let task = makeTask()
-        let record = makeRecord(status: .failure, exitCode: 1)
-        // Should use failure-specific header, not crash
-        notifier.notifyFailure(task: task, record: record)
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
+        let task = makeTask(slackMentions: ["<!channel>", "<@U123>"])
+        let record = makeRecord()
+        notifier.notifyCompletion(task: task, record: record)
     }
 
-    @Test("Empty stderr does not crash")
-    func emptyStderr() {
+    @Test("Empty stderr and stdout does not crash")
+    func emptyOutput() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "http://127.0.0.1:1/test"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
         let task = makeTask()
         let record = makeRecord(stderr: "")
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 
     @Test("Command with special characters in notification")
     func commandWithSpecialChars() {
         let notifier = SlackNotifier()
-        notifier.webhookURL = "http://127.0.0.1:1/test"
+        notifier.botToken = "xoxb-test"
+        notifier.channel = "C123"
         let task = makeTask(command: "curl 'https://api.example.com?a=1&b=2' | grep '<html>'")
         let record = makeRecord()
-        notifier.notifyFailure(task: task, record: record)
+        notifier.notifyCompletion(task: task, record: record)
     }
 }

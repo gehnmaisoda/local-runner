@@ -11,7 +11,7 @@ const mockTasks = [
       schedule: { type: "daily", time: "09:00" },
       enabled: true,
       catch_up: true,
-      notify_on_failure: false,
+      slack_notify: true,
     },
     isRunning: false,
     nextRunAt: "2026-04-01T00:00:00Z",
@@ -37,7 +37,7 @@ const mockTasks = [
       schedule: { type: "hourly", minute: 0 },
       enabled: true,
       catch_up: false,
-      notify_on_failure: true,
+      slack_notify: true,
     },
     isRunning: false,
     nextRunAt: "2026-04-01T01:00:00Z",
@@ -47,7 +47,8 @@ const mockTasks = [
 const mockSettings = {
   success: true,
   settings: {
-    slack_webhook_url: "",
+    slack_bot_token: "",
+    slack_channel: "",
     default_timeout: 3600,
   },
 };
@@ -165,7 +166,7 @@ test.describe("Web UI", () => {
 
     // Should show settings view
     await expect(page.locator("text=Slack 通知")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator("text=Webhook URL")).toBeVisible();
+    await expect(page.locator("text=Bot Token")).toBeVisible();
   });
 
   test("cron validation warning appears for invalid expression", async ({ page }) => {

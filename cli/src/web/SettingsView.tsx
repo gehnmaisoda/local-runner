@@ -37,10 +37,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   const [showSystemLog, setShowSystemLog] = useState(false);
 
   // Slack channel picker
-  // トークンが既に設定されている場合、初期状態を loading にしてちらつきを防ぐ
-  const hasTokenOnMount = useRef(!!settings?.slack_bot_token);
   const [channels, setChannels] = useState<SlackChannel[]>([]);
-  const [channelsLoading, setChannelsLoading] = useState(hasTokenOnMount.current);
   const [channelsError, setChannelsError] = useState<string | null>(null);
   const channelsFetchedRef = useRef(false);
 
@@ -58,9 +55,8 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
   }, [settings]);
 
-  // チャンネル一覧を取得（サーバーが保存済みトークンを使用）
+  // チャンネル一覧をバックグラウンドで取得（サーバーが保存済みトークンを使用）
   const fetchChannels = useCallback(async () => {
-    setChannelsLoading(true);
     setChannelsError(null);
     try {
       const res = await fetch("/api/slack/channels");
@@ -71,13 +67,9 @@ export function SettingsView({ settings, loading, onSave }: Props) {
         setChannels(sorted);
       } else {
         setChannelsError(slackErrorMessage(data.error ?? "チャンネルの取得に失敗しました"));
-        setChannels([]);
       }
     } catch {
       setChannelsError("チャンネルの取得に失敗しました");
-      setChannels([]);
-    } finally {
-      setChannelsLoading(false);
     }
   }, []);
 
@@ -204,22 +196,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
           </div>
           <div className="settings-field">
             <label className="settings-label">通知先チャンネル</label>
-            {channelsLoading ? (
-              <div className="field-hint-small">チャンネルを取得中...</div>
-            ) : channelsError ? (
-              <>
-                <input
-                  className="form-input"
-                  type="text"
-                  value={slackChannel}
-                  onChange={(e) => setSlackChannel(e.target.value)}
-                  placeholder="C1234567890"
-                  autoComplete="off"
-                  data-1p-ignore
-                />
-                <div className="field-error">{channelsError}</div>
-              </>
-            ) : channels.length > 0 ? (
+            {channels.length > 0 ? (
               <select
                 className="form-input"
                 value={slackChannel}
@@ -241,8 +218,8 @@ export function SettingsView({ settings, loading, onSave }: Props) {
                 data-1p-ignore
               />
             )}
-            {slackChannel && channelName && (
-              <div className="field-hint-small">#{channelName} ({slackChannel})</div>
+            {channelsError && (
+              <div className="field-error">{channelsError}</div>
             )}
           </div>
           {botToken && slackChannel && (

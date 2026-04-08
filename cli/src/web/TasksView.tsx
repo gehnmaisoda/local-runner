@@ -15,6 +15,7 @@ interface Props {
   onStop: (id: string) => void;
   onSave: (task: TaskDefinition) => Promise<boolean>;
   onDelete: (id: string, name: string) => void;
+  slackConfigured: boolean;
 }
 
 // --- Shared components ---
@@ -331,7 +332,7 @@ function buildTaskObj(form: TaskFormState, id: string, enabled: boolean): TaskDe
   };
 }
 
-function TaskFormFields({ form }: { form: TaskFormState }) {
+function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackConfigured: boolean }) {
   return (
     <>
       <div className="detail-section">
@@ -535,34 +536,36 @@ function TaskFormFields({ form }: { form: TaskFormState }) {
         </div>
       </div>
 
-      <div className="detail-section">
-        <label className="detail-label">Slack 通知</label>
-        <div className="checkbox-group">
-          <label className="checkbox-label">
-            <input type="checkbox" checked={form.slackNotify} onChange={(e) => form.setSlackNotify(e.target.checked)} />
-            タスク完了時に Slack に通知する
-          </label>
-          {form.slackNotify && (
-            <>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={form.slackMentions.includes("<!channel>")}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      form.setSlackMentions([...form.slackMentions, "<!channel>"]);
-                    } else {
-                      form.setSlackMentions(form.slackMentions.filter(m => m !== "<!channel>"));
-                    }
-                  }}
-                />
-                @channel でメンション
-              </label>
-              <SlackUserMentions mentions={form.slackMentions} onChange={form.setSlackMentions} />
-            </>
-          )}
+      {slackConfigured && (
+        <div className="detail-section">
+          <label className="detail-label">Slack 通知</label>
+          <div className="checkbox-group">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={form.slackNotify} onChange={(e) => form.setSlackNotify(e.target.checked)} />
+              タスク完了時に Slack に通知する
+            </label>
+            {form.slackNotify && (
+              <>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={form.slackMentions.includes("<!channel>")}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        form.setSlackMentions([...form.slackMentions, "<!channel>"]);
+                      } else {
+                        form.setSlackMentions(form.slackMentions.filter(m => m !== "<!channel>"));
+                      }
+                    }}
+                  />
+                  @channel でメンション
+                </label>
+                <SlackUserMentions mentions={form.slackMentions} onChange={form.setSlackMentions} />
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
@@ -662,11 +665,12 @@ interface DetailProps {
   onRun: () => void;
   onStop: () => void;
   onDelete: () => void;
+  slackConfigured: boolean;
 }
 
 const LOG_PAGE_SIZE = 15;
 
-function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete }: DetailProps) {
+function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete, slackConfigured }: DetailProps) {
   const countdown = useCountdown(taskStatus.nextRunAt);
   const form = useTaskForm(task);
 
@@ -745,7 +749,7 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete }: 
 
       <div className="detail-body two-col">
         <div className="detail-col-form">
-          <TaskFormFields form={form} />
+          <TaskFormFields form={form} slackConfigured={slackConfigured} />
           <div className="detail-section detail-delete">
             <button className="btn btn-danger-ghost" onClick={onDelete}>
               <TrashIcon />タスクを削除
@@ -790,9 +794,10 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete }: 
 
 // --- New Task Modal ---
 
-function NewTaskModal({ onSave, onClose }: {
+function NewTaskModal({ onSave, onClose, slackConfigured }: {
   onSave: (task: TaskDefinition) => Promise<boolean>;
   onClose: () => void;
+  slackConfigured: boolean;
 }) {
   const [autoId] = useState(() => generateId());
   const form = useTaskForm();
@@ -848,7 +853,7 @@ function NewTaskModal({ onSave, onClose }: {
               data-1p-ignore
             />
           </div>
-          <TaskFormFields form={form} />
+          <TaskFormFields form={form} slackConfigured={slackConfigured} />
         </div>
         <div className="modal-footer">
           <button
@@ -892,7 +897,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 // --- Main View ---
 
-export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, onStop, onSave, onDelete }: Props) {
+export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, onStop, onSave, onDelete, slackConfigured }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const groups = useMemo(() => groupByDirectory(tasks), [tasks]);
@@ -920,6 +925,7 @@ export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, o
           <NewTaskModal
             onSave={onSave}
             onClose={() => onNewTaskChange(false)}
+            slackConfigured={slackConfigured}
           />
         )}
       </>
@@ -961,6 +967,7 @@ export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, o
                 onDelete(selectedTask.task.id, selectedTask.task.name);
                 setSelectedId(null);
               }}
+              slackConfigured={slackConfigured}
             />
           )}
         </div>
@@ -970,6 +977,7 @@ export function TasksView({ tasks, loading, isNewTask, onNewTaskChange, onRun, o
         <NewTaskModal
           onSave={onSave}
           onClose={() => onNewTaskChange(false)}
+          slackConfigured={slackConfigured}
         />
       )}
     </>

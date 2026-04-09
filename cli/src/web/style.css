@@ -1483,13 +1483,13 @@ main {
 }
 
 .trigger-catchup {
-  color: var(--yellow);
-  background: rgba(210, 153, 34, 0.12);
+  color: var(--blue);
+  background: var(--blue-dim);
 }
 
 .trigger-manual {
-  color: var(--blue);
-  background: var(--blue-dim);
+  color: var(--yellow);
+  background: rgba(210, 153, 34, 0.12);
 }
 
 .log-meta-item {

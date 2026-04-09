@@ -517,7 +517,7 @@ function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackC
                 <br /><br />
                 OFFにすると、スキップされたスケジュールはそのまま破棄されます。
                 <br /><br />
-                例: 毎朝 08:00 のタスク → スリープ中にスキップ → 11:00 に復帰 → 即座に1回実行
+                例: 毎時 30分 のタスク → 09:30〜11:30 の3回分スキップ → 12:00 に復帰 → 即座に1回だけ実行
               </span>
             </span>
           </label>

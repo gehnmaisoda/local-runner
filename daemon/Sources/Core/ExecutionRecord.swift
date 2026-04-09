@@ -10,6 +10,13 @@ public enum ExecutionStatus: String, Codable, Sendable {
     case pending
 }
 
+/// タスク実行のトリガー種別。
+public enum ExecutionTrigger: String, Codable, Sendable {
+    case scheduled  // 通常のスケジュール実行
+    case catchup    // スリープ復帰後のキャッチアップ実行
+    case manual     // 手動実行 (run_task)
+}
+
 /// タスク1回分の実行記録。
 public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: UUID
@@ -23,9 +30,11 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
     public var stdout: String
     public var stderr: String
     public var status: ExecutionStatus
+    /// 実行トリガー。既存レコード（フィールドなし）との後方互換のため Optional。nil は .scheduled 相当。
+    public var trigger: ExecutionTrigger?
 
     enum CodingKeys: String, CodingKey {
-        case id, taskId, taskName, command, startedAt, finishedAt, exitCode, stdout, stderr, status
+        case id, taskId, taskName, command, startedAt, finishedAt, exitCode, stdout, stderr, status, trigger
         case workingDirectory = "working_directory"
     }
 
@@ -40,7 +49,8 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
         exitCode: Int32? = nil,
         stdout: String = "",
         stderr: String = "",
-        status: ExecutionStatus = .running
+        status: ExecutionStatus = .running,
+        trigger: ExecutionTrigger? = nil
     ) {
         self.id = id
         self.taskId = taskId
@@ -53,6 +63,7 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
         self.stdout = stdout
         self.stderr = stderr
         self.status = status
+        self.trigger = trigger
     }
 
     /// 実行時間（秒）。実行中の場合は nil。

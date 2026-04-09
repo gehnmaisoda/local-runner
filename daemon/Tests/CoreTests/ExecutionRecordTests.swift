@@ -108,3 +108,60 @@ struct ExecutionStatusTests {
         #expect(decoded.status == .timeout)
     }
 }
+
+// MARK: - ExecutionTrigger
+
+@Suite("ExecutionTrigger")
+struct ExecutionTriggerTests {
+    @Test("Trigger can be round-tripped through Codable")
+    func triggerCodable() throws {
+        for trigger: ExecutionTrigger in [.scheduled, .catchup, .manual] {
+            let record = ExecutionRecord(
+                taskId: "t", taskName: "test",
+                startedAt: Date(), finishedAt: Date(),
+                status: .success, trigger: trigger
+            )
+            let data = try JSONEncoder().encode(record)
+            let decoded = try JSONDecoder().decode(ExecutionRecord.self, from: data)
+            #expect(decoded.trigger == trigger)
+        }
+    }
+
+    @Test("Legacy JSON without trigger field decodes as nil")
+    func legacyBackwardCompatibility() throws {
+        // trigger フィールドなしの既存 JSON をシミュレート
+        let json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000000",
+            "taskId": "t1",
+            "taskName": "test",
+            "command": "echo hi",
+            "working_directory": "~",
+            "startedAt": "2026-01-01T00:00:00Z",
+            "finishedAt": "2026-01-01T00:01:00Z",
+            "exitCode": 0,
+            "stdout": "",
+            "stderr": "",
+            "status": "success"
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let record = try decoder.decode(ExecutionRecord.self, from: Data(json.utf8))
+        #expect(record.trigger == nil)
+        #expect(record.status == .success)
+    }
+
+    @Test("Default trigger is nil when not specified")
+    func defaultTrigger() {
+        let record = ExecutionRecord(taskId: "t", taskName: "test")
+        #expect(record.trigger == nil)
+    }
+
+    @Test("All trigger rawValues are distinct")
+    func allDistinct() {
+        let all: [ExecutionTrigger] = [.scheduled, .catchup, .manual]
+        let rawValues = Set(all.map(\.rawValue))
+        #expect(rawValues.count == all.count)
+    }
+}

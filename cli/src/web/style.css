@@ -1473,6 +1473,25 @@ main {
   background: rgba(210, 153, 34, 0.12);
 }
 
+.trigger-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.trigger-catchup {
+  color: var(--blue);
+  background: var(--blue-dim);
+}
+
+.trigger-manual {
+  color: var(--yellow);
+  background: rgba(210, 153, 34, 0.12);
+}
+
 .log-meta-item {
   font-family: var(--font-mono);
   font-size: 11px;

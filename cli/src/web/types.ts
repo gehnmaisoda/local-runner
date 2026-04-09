@@ -34,6 +34,7 @@ export interface ExecutionRecord {
   stdout: string;
   stderr: string;
   status: "running" | "success" | "failure" | "stopped" | "timeout" | "pending";
+  trigger?: "scheduled" | "catchup" | "manual";
 }
 
 export interface TaskStatus {

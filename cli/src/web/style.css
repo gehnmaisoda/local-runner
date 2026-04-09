@@ -1036,6 +1036,10 @@ main {
   background: var(--border);
   color: var(--text);
 }
+.copyable-id-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .copyable-id-btn.copied {
   color: var(--green);
 }

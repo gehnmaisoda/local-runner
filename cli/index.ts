@@ -29,7 +29,7 @@ const json = args.flags.has("json");
 const MAIN_HELP = `使い方: lr [コマンド] [オプション]
 
 コマンド:
-  (なし)              Web UI をブラウザで開く
+  (なし)              Web UI をブラウザで開く (--port でポート指定可)
   list                タスク一覧を表示
   show <タスクID>     タスクの詳細を表示
   create              タスクを新規作成
@@ -44,7 +44,7 @@ const MAIN_HELP = `使い方: lr [コマンド] [オプション]
   config set <k> <v>  設定を変更
   syslog              デーモンのシステムログを表示
   reload              タスク定義を再読み込み
-  serve [ポート]      Web UI をブラウザを開かずに起動
+  serve [--port <ポート>]  Web UI をブラウザを開かずに起動
   install             デーモンを LaunchAgent として登録
   uninstall           デーモンの LaunchAgent を解除 (--purge でデータも全削除)
   doctor              セットアップの診断
@@ -260,7 +260,9 @@ async function main() {
   // Default: open Web UI
   if (!command) {
     checkForUpdates(CLI_VERSION);
-    await startServer();
+    const portStr = args.options.get("port");
+    const port = portStr ? parsePositiveInt(portStr, "--port") : undefined;
+    await startServer(port);
     return;
   }
 
@@ -364,7 +366,8 @@ async function main() {
       break;
 
     case "serve": {
-      const port = args.positionals[1] ? parseInt(args.positionals[1], 10) : undefined;
+      const portStr = args.options.get("port") ?? args.positionals[1];
+      const port = portStr ? parsePositiveInt(portStr, "--port") : undefined;
       await startServer(port);
       break;
     }

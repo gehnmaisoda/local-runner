@@ -204,8 +204,10 @@ async function handleAPI(req: Request): Promise<Response> {
 
 // --- Server ---
 
+const DEFAULT_PORT = 4510;
+
 export async function startServer(preferredPort?: number) {
-  const port = preferredPort ?? 0; // 0 = OS picks available port
+  const port = preferredPort ?? DEFAULT_PORT;
 
   // Try to connect to daemon first
   try {
@@ -214,37 +216,48 @@ export async function startServer(preferredPort?: number) {
     console.warn("警告: デーモンに接続できませんでした。リクエスト時に再接続を試みます。");
   }
 
-  const server = Bun.serve({
-    port,
-    routes: {
-      "/": index,
-    },
-    async fetch(req, server) {
-      const url = new URL(req.url);
-
-      // WebSocket upgrade
-      if (url.pathname === "/ws") {
-        if (server.upgrade(req)) return;
-        return new Response("WebSocket アップグレードに失敗しました", { status: 400 });
-      }
-
-      // API routes
-      if (url.pathname.startsWith("/api/")) {
-        return handleAPI(req);
-      }
-
-      return new Response("見つかりません", { status: 404 });
-    },
-    websocket: {
-      open(ws) {
-        wsClients.add(ws as any);
+  let server;
+  try {
+    server = Bun.serve({
+      port,
+      routes: {
+        "/": index,
       },
-      message() {},
-      close(ws) {
-        wsClients.delete(ws as any);
+      async fetch(req, server) {
+        const url = new URL(req.url);
+
+        // WebSocket upgrade
+        if (url.pathname === "/ws") {
+          if (server.upgrade(req)) return;
+          return new Response("WebSocket アップグレードに失敗しました", { status: 400 });
+        }
+
+        // API routes
+        if (url.pathname.startsWith("/api/")) {
+          return handleAPI(req);
+        }
+
+        return new Response("見つかりません", { status: 404 });
       },
-    },
-  });
+      websocket: {
+        open(ws) {
+          wsClients.add(ws as any);
+        },
+        message() {},
+        close(ws) {
+          wsClients.delete(ws as any);
+        },
+      },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("EADDRINUSE") || msg.includes("address already in use")) {
+      console.error(`エラー: ポート ${port} は既に使用されています。`);
+      console.error(`別のポートを指定してください: lr --port <ポート番号>`);
+      process.exit(1);
+    }
+    throw err;
+  }
 
   const actualPort = server.port;
   const url = `http://localhost:${actualPort}`;

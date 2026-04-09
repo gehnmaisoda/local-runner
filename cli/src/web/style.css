@@ -1005,28 +1005,42 @@ main {
 }
 
 /* --- Copyable ID (click-to-copy inline badge) --- */
-.copyable-id {
+.copyable-id-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  background: var(--surface);
-  border-radius: 4px;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.copyable-id-value {
+  padding: 4px 10px;
   font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
+  color: var(--text-secondary);
+  user-select: all;
 }
-.copyable-id:hover {
-  background: var(--border);
-}
-.copyable-id .copy-icon {
+.copyable-id-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 11px;
-  opacity: 0.5;
-  font-style: normal;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.copyable-id:hover .copy-icon {
-  opacity: 1;
+.copyable-id-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.copyable-id-btn.copied {
+  color: var(--green);
+}
+.copyable-id-btn svg {
+  flex-shrink: 0;
 }
 
 .log-modal-body {

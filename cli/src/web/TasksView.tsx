@@ -28,10 +28,21 @@ export function CopyableId({ value }: { value: string }) {
     setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <code className="copyable-id" onClick={handleCopy} title="クリックでコピー">
-      {value}
-      <span className="copy-icon">{copied ? "\u2713" : "\u29C9"}</span>
-    </code>
+    <span className="copyable-id-wrap">
+      <code className="copyable-id-value">{value}</code>
+      <button className={`copyable-id-btn ${copied ? "copied" : ""}`} onClick={handleCopy} title="コピー">
+        {copied ? (
+          <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <path d="M3 8.5L6.5 12L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10.5 5.5V3.5C10.5 2.67 9.83 2 9 2H3.5C2.67 2 2 2.67 2 3.5V9C2 9.83 2.67 10.5 3.5 10.5H5.5" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        )}
+      </button>
+    </span>
   );
 }
 

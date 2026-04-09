@@ -222,6 +222,47 @@ struct HandleWakeCatchUpTests {
     }
 }
 
+// MARK: - DisplayWakeState.isFullWake tests
+
+@Suite("DisplayWakeState.isFullWake")
+struct DisplayWakeStateTests {
+    @Test("Full Wake: all capabilities (CPU|Graphics|Audio|Network = 0x0F)")
+    func fullWakeAllCaps() {
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x0F) == true)
+    }
+
+    @Test("Full Wake: Graphics bit set with other bits")
+    func fullWakeGraphicsSet() {
+        // CPU | Graphics = 0x03
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x03) == true)
+    }
+
+    @Test("Full Wake: only Graphics bit")
+    func fullWakeGraphicsOnly() {
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x02) == true)
+    }
+
+    @Test("DarkWake: CPU|Network only (0x09)")
+    func darkWakeCpuNetwork() {
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x09) == false)
+    }
+
+    @Test("DarkWake: CPU only (0x01)")
+    func darkWakeCpuOnly() {
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x01) == false)
+    }
+
+    @Test("DarkWake: no capabilities (0x00)")
+    func darkWakeNoCaps() {
+        #expect(DisplayWakeState.isFullWake(capabilities: 0x00) == false)
+    }
+
+    @Test("graphicsBit constant matches xnu definition")
+    func graphicsBitValue() {
+        #expect(DisplayWakeState.graphicsBit == 0x02)
+    }
+}
+
 // MARK: - DarkWake handleWake tests
 
 @Suite("handleWake DarkWake guard")

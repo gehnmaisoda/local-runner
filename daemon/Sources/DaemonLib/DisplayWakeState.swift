@@ -1,56 +1,55 @@
 import Foundation
-import IOKit.pwr_mgt
-import CoreGraphics
+import IOKit
 
 /// DarkWake（ディスプレイ消灯中の短時間復帰）を検知し、タスク実行可否を判定する。
 ///
-/// - ディスプレイ ON → 実行可
-/// - ディスプレイ OFF + Sleep防止 Assertion あり（Amphetamine等）→ 実行可
-/// - ディスプレイ OFF + Assertion なし → DarkWake、スキップ
+/// IOKit の IOPMrootDomain から "System Capabilities" を読み取り、
+/// Graphics ビット (0x02) の有無で Full Wake / DarkWake を判定する。
+/// CG Display API (CGDisplayIsAsleep) は DarkWake 中の挙動が不安定なため使用しない。
+///
+/// - Full Wake (caps & 0x02 != 0) → 実行可
+/// - DarkWake  (caps & 0x02 == 0) → スキップ
 public protocol DisplayWakeStateChecking: Sendable {
     func shouldExecuteScheduledTasks() -> Bool
 }
 
 public final class DisplayWakeState: DisplayWakeStateChecking, @unchecked Sendable {
-    public func shouldExecuteScheduledTasks() -> Bool {
-        let displayID = CGMainDisplayID()
-        guard displayID != kCGNullDirectDisplay else {
-            // ディスプレイ状態を取得できない場合は安全側（実行しない）
-            // DarkWake 中は GPU 未初期化で kCGNullDirectDisplay が返る
-            Log.info("DisplayWakeState", "ディスプレイID取得不可 — DarkWake の可能性があるためスキップ")
-            return false
-        }
+    /// kIOPMSystemCapabilityGraphics (xnu: IOPM.h)
+    static let graphicsBit: Int = 0x02
 
-        if CGDisplayIsAsleep(displayID) == 0 {
-            return true
-        }
+    public init() {}
 
-        // ディスプレイ消灯中: Sleep防止 Assertion があれば実行を許可
-        return hasSleepPreventionAssertions()
+    /// System Capabilities の値から Full Wake かどうかを判定する純粋関数。
+    static func isFullWake(capabilities: Int) -> Bool {
+        (capabilities & graphicsBit) != 0
     }
 
-    private func hasSleepPreventionAssertions() -> Bool {
-        var assertionsStatus: Unmanaged<CFDictionary>?
-        let result = IOPMCopyAssertionsStatus(&assertionsStatus)
-        guard result == kIOReturnSuccess,
-              let cfDict = assertionsStatus?.takeRetainedValue() else {
-            Log.info("DisplayWakeState", "Assertion 状態を取得できないためスキップ")
+    public func shouldExecuteScheduledTasks() -> Bool {
+        guard let caps = Self.readSystemCapabilities() else {
+            Log.info("DisplayWakeState", "System Capabilities を取得できないためスキップ")
             return false
         }
 
-        let dict = cfDict as NSDictionary
-        let relevantKeys = [
-            "PreventUserIdleSystemSleep",
-            "PreventUserIdleDisplaySleep",
-            "PreventSystemSleep",
-        ]
+        let result = Self.isFullWake(capabilities: caps)
 
-        for key in relevantKeys {
-            if let value = dict[key] as? Int, value > 0 {
-                return true
-            }
+        if !result {
+            Log.info("DisplayWakeState", "Graphics capability なし (caps=\(caps)) — DarkWake のためスキップ")
         }
 
-        return false
+        return result
+    }
+
+    /// IOPMrootDomain から "System Capabilities" を読み取る。
+    private static func readSystemCapabilities() -> Int? {
+        let entry = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard entry != MACH_PORT_NULL else { return nil }
+        defer { IOObjectRelease(entry) }
+
+        guard let capsCF = IORegistryEntryCreateCFProperty(entry, "System Capabilities" as CFString, kCFAllocatorDefault, 0) else {
+            return nil
+        }
+
+        // CFNumber は環境によって Int32/Int64 で格納されうるため NSNumber 経由で安全に取得
+        return (capsCF.takeRetainedValue() as? NSNumber)?.intValue
     }
 }

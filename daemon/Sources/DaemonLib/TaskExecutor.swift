@@ -59,7 +59,7 @@ public final class TaskExecutor: @unchecked Sendable {
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         // set -e: 途中のコマンドが失敗したら即終了
         // set -o pipefail: パイプライン中の失敗も検知
-        process.arguments = ["-l", "-c", "set -eo pipefail\n" + task.command]
+        process.arguments = ["-l", "-c", "source ~/.zshrc 2>/dev/null\nset -eo pipefail\n" + task.command]
 
         let dir = task.workingDirectory ?? "~"
         let expandedDir = NSString(string: dir).expandingTildeInPath

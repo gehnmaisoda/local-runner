@@ -507,15 +507,17 @@ function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackC
         <div className="checkbox-group">
           <label className="checkbox-label">
             <input type="checkbox" checked={form.catchUp} onChange={(e) => form.setCatchUp(e.target.checked)} />
-            スリープ復帰時に未実行分を1回実行
+            キャッチアップ実行
             <span className="tooltip-wrap">
               <span className="tooltip-hint">?</span>
               <span className="tooltip-bubble">
-                スリープ復帰時に、実行されなかったスケジュールがあれば <strong>1回だけ</strong> 再実行します。複数回分溜まっていても実行は1回です。
+                タスクは <strong>ネットワーク接続中</strong> かつ <strong>ディスプレイが開いている</strong> 場合のみ実行されます。スリープ中やオフライン時はスキップされます。
                 <br /><br />
-                遡る範囲は直前のスリープ期間のみです。
+                ONにすると、復帰時にスキップされたスケジュールを検知し <strong>1回だけ</strong> キャッチアップ実行します。複数回分溜まっていても実行は1回です。
                 <br /><br />
-                例: 毎朝 08:00 のタスクで 11:00 に復帰 → 即座に1回実行
+                OFFにすると、スキップされたスケジュールはそのまま破棄されます。
+                <br /><br />
+                例: 毎朝 08:00 のタスク → スリープ中にスキップ → 11:00 に復帰 → 即座に1回実行
               </span>
             </span>
           </label>

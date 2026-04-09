@@ -21,9 +21,9 @@ public final class TaskScheduler: @unchecked Sendable {
     private var isShuttingDown = false
     private var cachedSettings = GlobalSettings()
 
-    /// ネットワーク未接続時の保留キュー（タスクID → タスク定義 + プレースホルダーのレコードID）。
+    /// ネットワーク未接続時の保留キュー（タスクID → タスク定義 + プレースホルダーのレコードID + トリガー種別）。
     /// 各タスクにつき最大1件保留。復帰時に同じレコードを更新する。
-    private var pendingTasks: [String: (task: TaskDefinition, recordId: UUID)] = [:]
+    private var pendingTasks: [String: (task: TaskDefinition, recordId: UUID, trigger: ExecutionTrigger)] = [:]
 
     /// ネットワーク監視
     public var networkMonitor: NetworkChecking = NetworkMonitor()
@@ -105,7 +105,7 @@ public final class TaskScheduler: @unchecked Sendable {
             Log.info("Scheduler", "タスクが見つかりません: \(taskId)")
             return
         }
-        executeTask(task)
+        executeTask(task, trigger: .manual)
     }
 
     public func stopTask(_ taskId: String) {
@@ -182,14 +182,14 @@ public final class TaskScheduler: @unchecked Sendable {
         if networkMonitor.isConnected {
             for task in catchUpTasks {
                 Log.info("Scheduler", "キャッチアップ実行: \(task.name)")
-                executeTask(task)
+                executeTask(task, trigger: .catchup)
             }
         } else {
             // オフラインなら保留キューに入れて、ネットワーク復帰時にまとめて実行
             var newRecords: [ExecutionRecord] = []
             lock.lock()
             for task in catchUpTasks {
-                if let record = tryEnqueuePending(task) { newRecords.append(record) }
+                if let record = tryEnqueuePending(task, trigger: .catchup) { newRecords.append(record) }
             }
             lock.unlock()
             commitPendingRecords(newRecords)
@@ -202,7 +202,7 @@ public final class TaskScheduler: @unchecked Sendable {
     /// ネットワーク復帰時に保留キューのタスクを実行する。
     /// 保留時に作成済みのプレースホルダーレコードを再利用する。
     private func executePendingTasks() {
-        let pending: [(task: TaskDefinition, recordId: UUID)]
+        let pending: [(task: TaskDefinition, recordId: UUID, trigger: ExecutionTrigger)]
         lock.lock()
         pending = Array(pendingTasks.values)
         pendingTasks.removeAll()
@@ -211,14 +211,14 @@ public final class TaskScheduler: @unchecked Sendable {
         if !pending.isEmpty {
             Log.info("Scheduler", "ネットワーク復帰: 保留中の \(pending.count) 件のタスクを実行します")
             for entry in pending {
-                executeTaskWithRecord(entry.task, recordId: entry.recordId)
+                executeTaskWithRecord(entry.task, recordId: entry.recordId, trigger: entry.trigger)
             }
         }
     }
 
     /// タスクが保留可能かチェックし、可能ならキューに登録する。
     /// lock を保持した状態で呼ぶこと。副作用のあるレコード追加・通知は返り値で呼び出し元が行う。
-    private func tryEnqueuePending(_ task: TaskDefinition) -> ExecutionRecord? {
+    private func tryEnqueuePending(_ task: TaskDefinition, trigger: ExecutionTrigger = .scheduled) -> ExecutionRecord? {
         guard pendingTasks[task.id] == nil else {
             Log.info("Scheduler", "オフライン: \(task.name) は既に保留中のため棄却")
             return nil
@@ -227,9 +227,9 @@ public final class TaskScheduler: @unchecked Sendable {
         let placeholder = ExecutionRecord(
             taskId: task.id, taskName: task.name,
             command: task.command, workingDirectory: task.workingDirectory ?? "~",
-            status: .pending
+            status: .pending, trigger: trigger
         )
-        pendingTasks[task.id] = (task: task, recordId: placeholder.id)
+        pendingTasks[task.id] = (task: task, recordId: placeholder.id, trigger: trigger)
         Log.info("Scheduler", "オフライン: \(task.name) を保留キューに追加")
         return placeholder
     }
@@ -326,29 +326,29 @@ public final class TaskScheduler: @unchecked Sendable {
         nextFireDates = ScheduleLogic.calculateNextFireDates(for: tasks, after: Date())
     }
 
-    private func executeTask(_ task: TaskDefinition) {
+    private func executeTask(_ task: TaskDefinition, trigger: ExecutionTrigger = .scheduled) {
         guard !lock.withLock({ isShuttingDown }) else { return }
         Log.info("Scheduler", "実行開始: \(task.name)")
         onNotification?(.taskStarted(task.id))
 
         // running 状態の仮レコードを保存（UI に実行中表示用）
-        let placeholder = ExecutionRecord(taskId: task.id, taskName: task.name, command: task.command, workingDirectory: task.workingDirectory ?? "~")
+        let placeholder = ExecutionRecord(taskId: task.id, taskName: task.name, command: task.command, workingDirectory: task.workingDirectory ?? "~", trigger: trigger)
         logStore.append(placeholder)
 
-        runTask(task, recordId: placeholder.id)
+        runTask(task, recordId: placeholder.id, trigger: trigger)
     }
 
     /// 保留キューから復帰したタスクを実行する。プレースホルダーは保留時に作成済み。
-    private func executeTaskWithRecord(_ task: TaskDefinition, recordId: UUID) {
+    private func executeTaskWithRecord(_ task: TaskDefinition, recordId: UUID, trigger: ExecutionTrigger = .scheduled) {
         guard !lock.withLock({ isShuttingDown }) else { return }
         Log.info("Scheduler", "実行開始（保留復帰）: \(task.name)")
         onNotification?(.taskStarted(task.id))
 
-        runTask(task, recordId: recordId)
+        runTask(task, recordId: recordId, trigger: trigger)
     }
 
     /// タスクを非同期実行し、指定レコードIDで結果を更新する。
-    private func runTask(_ task: TaskDefinition, recordId: UUID) {
+    private func runTask(_ task: TaskDefinition, recordId: UUID, trigger: ExecutionTrigger = .scheduled) {
         let defaultTimeout = lock.withLock { cachedSettings.effectiveDefaultTimeout }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
@@ -364,7 +364,8 @@ public final class TaskScheduler: @unchecked Sendable {
                 exitCode: result.exitCode,
                 stdout: result.stdout,
                 stderr: result.stderr,
-                status: result.status
+                status: result.status,
+                trigger: trigger
             )
             self.logStore.update(finalRecord)
             self.onNotification?(.taskCompleted(task.id, record: finalRecord))

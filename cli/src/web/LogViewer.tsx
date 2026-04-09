@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { ExecutionRecord } from "./types.ts";
 import { formatDate, formatDuration, statusLabel } from "./format.ts";
+import { TriggerTag } from "./TasksView.tsx";
 
 interface ModalProps {
   record: ExecutionRecord;
@@ -50,6 +51,7 @@ export function LogModal({ record, onClose }: ModalProps) {
               </span>
               <span className="log-meta-item">{formatDate(record.startedAt)}</span>
               <span className="log-meta-item">{formatDuration(record)}</span>
+              <TriggerTag trigger={record.trigger} />
             </div>
             <div className="log-context">
               {record.command && (

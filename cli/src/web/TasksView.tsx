@@ -65,6 +65,12 @@ export function StatusResult({ status, duration }: { status: string; duration: s
   );
 }
 
+export function TriggerTag({ trigger }: { trigger?: ExecutionRecord["trigger"] }) {
+  if (!trigger || trigger === "scheduled") return null;
+  const label = trigger === "catchup" ? "キャッチアップ" : "手動実行";
+  return <span className={`trigger-tag trigger-${trigger}`}>{label}</span>;
+}
+
 function LogRow({ record, onClick }: { record: ExecutionRecord; onClick: () => void }) {
   return (
     <div className="log-row" onClick={onClick}>
@@ -72,6 +78,7 @@ function LogRow({ record, onClick }: { record: ExecutionRecord; onClick: () => v
         <span className={`status-dot ${record.status}`} />
         <span className="log-row-time">{formatDate(record.startedAt)}</span>
         <StatusResult status={record.status} duration={formatDuration(record)} />
+        <TriggerTag trigger={record.trigger} />
       </div>
     </div>
   );

@@ -1004,6 +1004,31 @@ main {
   text-decoration: underline;
 }
 
+/* --- Copyable ID (click-to-copy inline badge) --- */
+.copyable-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--surface);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.copyable-id:hover {
+  background: var(--border);
+}
+.copyable-id .copy-icon {
+  font-size: 11px;
+  opacity: 0.5;
+  font-style: normal;
+}
+.copyable-id:hover .copy-icon {
+  opacity: 1;
+}
+
 .log-modal-body {
   padding: 0 24px 24px;
   flex: 1;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { ExecutionRecord } from "./types.ts";
 import { formatDate, formatDuration, statusLabel } from "./format.ts";
-import { TriggerTag } from "./TasksView.tsx";
+import { TriggerTag, CopyableId } from "./TasksView.tsx";
 
 interface ModalProps {
   record: ExecutionRecord;
@@ -54,6 +54,10 @@ export function LogModal({ record, onClose }: ModalProps) {
               <TriggerTag trigger={record.trigger} />
             </div>
             <div className="log-context">
+              <div className="log-context-row">
+                <span className="log-context-label">実行ID</span>
+                <CopyableId value={record.id} />
+              </div>
               {record.command && (
                 <div className="log-context-row">
                   <span className="log-context-label">コマンド</span>

@@ -18,6 +18,23 @@ interface Props {
   slackConfigured: boolean;
 }
 
+// --- Copyable ID ---
+
+export function CopyableId({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <code className="copyable-id" onClick={handleCopy} title="クリックでコピー">
+      {value}
+      <span className="copy-icon">{copied ? "\u2713" : "\u29C9"}</span>
+    </code>
+  );
+}
+
 // --- Shared components ---
 
 function StatusDot({ task }: { task: TaskStatus }) {
@@ -758,6 +775,10 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete, sl
 
       <div className="detail-body two-col">
         <div className="detail-col-form">
+          <div className="detail-section">
+            <label className="detail-label">タスクID</label>
+            <CopyableId value={task.id} />
+          </div>
           <TaskFormFields form={form} slackConfigured={slackConfigured} />
           <div className="detail-section detail-delete">
             <button className="btn btn-danger-ghost" onClick={onDelete}>

@@ -1022,23 +1022,21 @@ main {
 .copyable-id-btn {
   display: inline-flex;
   align-items: center;
+  align-self: stretch;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border: none;
   border-left: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
+  outline: none;
   transition: background 0.15s, color 0.15s;
 }
 .copyable-id-btn:hover {
   background: var(--border);
   color: var(--text);
-}
-.copyable-id-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
 }
 .copyable-id-btn.copied {
   color: var(--green);

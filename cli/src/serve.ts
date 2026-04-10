@@ -202,6 +202,21 @@ async function handleAPI(req: Request): Promise<Response> {
   }
 }
 
+// --- Port conflict detection ---
+
+/** Check whether a LocalRunner instance is already listening at the given URL. */
+async function isLocalRunnerAt(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url}/api/tasks`, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok && res.status !== 502) return false;
+    const body = await res.json();
+    // Our API returns { tasks: [...] } or { error: "..." } with status 502 when daemon is down
+    return Array.isArray(body.tasks) || (res.status === 502 && typeof body.error === "string");
+  } catch {
+    return false;
+  }
+}
+
 // --- Server ---
 
 const DEFAULT_PORT = 4510;
@@ -251,9 +266,15 @@ export async function startServer(preferredPort?: number) {
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("EADDRINUSE") || msg.includes("address already in use")) {
-      console.error(`エラー: ポート ${port} は既に使用されています。`);
-      console.error(`別のポートを指定してください: lr --port <ポート番号>`);
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "EADDRINUSE" || msg.includes("EADDRINUSE") || msg.includes("address already in use")) {
+      const url = `http://localhost:${port}`;
+      if (await isLocalRunnerAt(url)) {
+        console.log(`LocalRunner は既に起動しています: ${url}`);
+      } else {
+        console.error(`エラー: ポート ${port} は既に使用されています。`);
+        console.error(`別のポートを指定してください: lr --port <ポート番号>`);
+      }
       process.exit(1);
     }
     throw err;

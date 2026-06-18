@@ -20,13 +20,20 @@ struct GlobalSettingsSlackTests {
 
     @Test("GlobalSettings JSON roundtrip preserves Slack fields")
     func jsonRoundtrip() throws {
-        let settings = GlobalSettings(slackBotToken: "xoxb-abc", slackChannel: "C456", slackChannelName: "general", defaultTimeout: 120)
+        let settings = GlobalSettings(
+            slackBotToken: "xoxb-abc",
+            slackChannel: "C456",
+            slackChannelName: "general",
+            defaultTimeout: 120,
+            allowDarkWakeExecution: true
+        )
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(GlobalSettings.self, from: data)
         #expect(decoded.slackBotToken == "xoxb-abc")
         #expect(decoded.slackChannel == "C456")
         #expect(decoded.slackChannelName == "general")
         #expect(decoded.defaultTimeout == 120)
+        #expect(decoded.allowDarkWakeExecution == true)
     }
 
     @Test("JSON uses snake_case keys")
@@ -58,5 +65,21 @@ struct GlobalSettingsEffectiveTimeoutTests {
     @Test("defaultTimeoutValue is 3600")
     func staticDefault() {
         #expect(GlobalSettings.defaultTimeoutValue == 3600)
+    }
+}
+
+@Suite("GlobalSettings.shouldExecuteDuringDarkWake")
+struct GlobalSettingsDarkWakeTests {
+    @Test("Defaults to false")
+    func defaultFalse() {
+        let settings = GlobalSettings()
+        #expect(settings.allowDarkWakeExecution == nil)
+        #expect(settings.shouldExecuteDuringDarkWake == false)
+    }
+
+    @Test("Returns true when explicitly enabled")
+    func explicitTrue() {
+        let settings = GlobalSettings(allowDarkWakeExecution: true)
+        #expect(settings.shouldExecuteDuringDarkWake == true)
     }
 }

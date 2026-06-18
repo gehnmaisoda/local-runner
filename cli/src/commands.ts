@@ -186,6 +186,13 @@ export function parsePositiveInt(value: string, label: string): number {
   return num;
 }
 
+export function parseBoolean(value: string, label: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  throw new CLIError(`${label} は true/false を指定してください`, EXIT.VALIDATION);
+}
+
 async function withClient<T>(fn: (client: IPCClient) => Promise<T>): Promise<T> {
   let client: IPCClient;
   try {
@@ -621,6 +628,7 @@ export async function configGet(json: boolean) {
 
     const s = res.settings;
     console.log(`デフォルトタイムアウト: ${s.default_timeout ?? 3600}秒`);
+    console.log(`DarkWake/ディスプレイ消灯中の実行: ${s.allow_darkwake_execution ? "許可" : "停止"}`);
     console.log(`Slack Bot Token:       ${s.slack_bot_token ? "(設定済み)" : "(未設定)"}`);
     const channelDisplay = s.slack_channel_name ? `#${s.slack_channel_name} (${s.slack_channel})` : s.slack_channel;
     console.log(`Slack Channel:         ${channelDisplay ?? "(未設定)"}`);
@@ -628,7 +636,7 @@ export async function configGet(json: boolean) {
 }
 
 export async function configSet(key: string, value: string, json: boolean) {
-  const validKeys = ["default_timeout", "slack_bot_token", "slack_channel"];
+  const validKeys = ["default_timeout", "slack_bot_token", "slack_channel", "allow_darkwake_execution"];
   if (!validKeys.includes(key)) {
     throw new CLIError(
       `不明な設定キー: ${key} (使用可能: ${validKeys.join(", ")})`,
@@ -650,6 +658,9 @@ export async function configSet(key: string, value: string, json: boolean) {
         break;
       case "slack_channel":
         current.slack_channel = value;
+        break;
+      case "allow_darkwake_execution":
+        current.allow_darkwake_execution = parseBoolean(value, "allow_darkwake_execution");
         break;
     }
 

@@ -146,14 +146,22 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
     public var slackChannel: String?
     public var slackChannelName: String?
     public var defaultTimeout: Int?
+    public var allowDarkWakeExecution: Bool?
 
     public static let defaultTimeoutValue = 3600
 
-    public init(slackBotToken: String? = nil, slackChannel: String? = nil, slackChannelName: String? = nil, defaultTimeout: Int? = nil) {
+    public init(
+        slackBotToken: String? = nil,
+        slackChannel: String? = nil,
+        slackChannelName: String? = nil,
+        defaultTimeout: Int? = nil,
+        allowDarkWakeExecution: Bool? = nil
+    ) {
         self.slackBotToken = slackBotToken
         self.slackChannel = slackChannel
         self.slackChannelName = slackChannelName
         self.defaultTimeout = defaultTimeout
+        self.allowDarkWakeExecution = allowDarkWakeExecution
     }
 
     /// タスク個別のタイムアウトが未設定の場合に使うタイムアウト値を返す。
@@ -161,11 +169,17 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
         defaultTimeout ?? Self.defaultTimeoutValue
     }
 
+    /// DarkWake / display-asleep 状態でも scheduled/catch-up タスクを実行するか。
+    public var shouldExecuteDuringDarkWake: Bool {
+        allowDarkWakeExecution ?? false
+    }
+
     enum CodingKeys: String, CodingKey {
         case slackBotToken = "slack_bot_token"
         case slackChannel = "slack_channel"
         case slackChannelName = "slack_channel_name"
         case defaultTimeout = "default_timeout"
+        case allowDarkWakeExecution = "allow_darkwake_execution"
     }
 }
 

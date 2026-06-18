@@ -45,9 +45,7 @@ public final class TaskScheduler: @unchecked Sendable {
         startFileWatcher()
         // 起動時に設定を読み込んで反映
         let settings = loadSettings()
-        lock.withLock { cachedSettings = settings }
-        slackNotifier.botToken = settings.slackBotToken
-        slackNotifier.channel = settings.slackChannel
+        applySettings(settings)
 
         // ネットワーク監視を起動
         networkMonitor.onRestore = { [weak self] in
@@ -156,7 +154,7 @@ public final class TaskScheduler: @unchecked Sendable {
     // MARK: - スリープ復帰
 
     public func handleWake(lastSleepDate: Date) {
-        guard displayWakeState.shouldExecuteScheduledTasks() else {
+        guard canExecuteScheduledTasks() else {
             Log.info("Scheduler", "DarkWake中のためキャッチアップ実行をスキップ")
             return
         }
@@ -256,6 +254,10 @@ public final class TaskScheduler: @unchecked Sendable {
     public func saveSettings(_ settings: GlobalSettings) throws {
         let yaml = try YAMLEncoder().encode(settings)
         try yaml.write(to: ConfigPaths.settingsFile, atomically: true, encoding: .utf8)
+        applySettings(settings)
+    }
+
+    public func applySettings(_ settings: GlobalSettings) {
         lock.withLock { cachedSettings = settings }
         slackNotifier.botToken = settings.slackBotToken
         slackNotifier.channel = settings.slackChannel
@@ -277,7 +279,7 @@ public final class TaskScheduler: @unchecked Sendable {
     }
 
     private func checkSchedule() {
-        guard displayWakeState.shouldExecuteScheduledTasks() else {
+        guard canExecuteScheduledTasks() else {
             if !isDarkWakePaused {
                 isDarkWakePaused = true
                 Log.info("Scheduler", "DarkWake検知: スケジュール実行を一時停止します")
@@ -310,6 +312,13 @@ public final class TaskScheduler: @unchecked Sendable {
         }
 
         lock.withLock { recalculateFireDatesLocked() }
+    }
+
+    private func canExecuteScheduledTasks() -> Bool {
+        if lock.withLock({ cachedSettings.shouldExecuteDuringDarkWake }) {
+            return true
+        }
+        return displayWakeState.shouldExecuteScheduledTasks()
     }
 
     private func checkFileChanges() {

@@ -52,6 +52,7 @@ export interface GlobalSettings {
   slack_channel?: string;
   slack_channel_name?: string;
   default_timeout?: number;
+  allow_darkwake_execution?: boolean;
 }
 
 export interface IPCRequest {

@@ -34,6 +34,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   const [slackChannel, setSlackChannel] = useState("");
   const [slackChannelName, setSlackChannelName] = useState("");
   const [defaultTimeout, setDefaultTimeout] = useState(DEFAULT_TIMEOUT);
+  const [allowDarkWakeExecution, setAllowDarkWakeExecution] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [showSystemLog, setShowSystemLog] = useState(false);
 
@@ -56,6 +57,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     setSlackChannel(settings.slack_channel ?? "");
     setSlackChannelName(settings.slack_channel_name ?? "");
     setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
+    setAllowDarkWakeExecution(settings.allow_darkwake_execution ?? false);
   }, [settings]);
 
   // Auto-save on change (debounced)
@@ -75,12 +77,13 @@ export function SettingsView({ settings, loading, onSave }: Props) {
         slack_channel: slackChannel || undefined,
         slack_channel_name: slackChannelName || undefined,
         default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
+        allow_darkwake_execution: allowDarkWakeExecution || undefined,
       });
       setSaveStatus(ok ? "saved" : "idle");
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [botToken, slackChannel, slackChannelName, defaultTimeout]);
+  }, [botToken, slackChannel, slackChannelName, defaultTimeout, allowDarkWakeExecution]);
 
   // 「変更」ボタン押下時にチャンネル一覧を取得
   const handleStartPicking = useCallback(async () => {
@@ -168,6 +171,19 @@ export function SettingsView({ settings, loading, onSave }: Props) {
             <div className="field-hint-small">
               タスクごとのタイムアウトが設定されている場合はそちらが優先されます。
               デフォルト: {DEFAULT_TIMEOUT} 秒（1時間）
+            </div>
+          </div>
+          <div className="settings-field">
+            <label className="settings-label">
+              <input
+                type="checkbox"
+                checked={allowDarkWakeExecution}
+                onChange={(e) => setAllowDarkWakeExecution(e.target.checked)}
+              />
+              DarkWake / ディスプレイ消灯中も実行する
+            </label>
+            <div className="field-hint-small">
+              閉じた Mac を常時稼働機として使う場合に有効化します。未設定時は従来通り DarkWake 中のスケジュール実行を停止します。
             </div>
           </div>
         </div>

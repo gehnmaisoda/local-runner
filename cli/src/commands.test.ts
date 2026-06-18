@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import {
   formatDate, formatDuration, formatTimestamp, statusIcon, pad,
   formatSchedule, generateId, buildSchedule, applyScheduleEdits,
-  statusLabel, parsePositiveInt,
+  statusLabel, parsePositiveInt, parseBoolean,
   CLIError, EXIT,
 } from "./commands.ts";
 
@@ -389,6 +389,28 @@ describe("parsePositiveInt", () => {
     try { parsePositiveInt("abc", "--timeout"); } catch (e: any) {
       expect(e.message).toContain("--timeout");
     }
+  });
+});
+
+// --- parseBoolean tests ---
+
+describe("parseBoolean", () => {
+  test("parses truthy values", () => {
+    expect(parseBoolean("true", "flag")).toBe(true);
+    expect(parseBoolean("1", "flag")).toBe(true);
+    expect(parseBoolean("yes", "flag")).toBe(true);
+    expect(parseBoolean("on", "flag")).toBe(true);
+  });
+
+  test("parses falsy values", () => {
+    expect(parseBoolean("false", "flag")).toBe(false);
+    expect(parseBoolean("0", "flag")).toBe(false);
+    expect(parseBoolean("no", "flag")).toBe(false);
+    expect(parseBoolean("off", "flag")).toBe(false);
+  });
+
+  test("throws for invalid values", () => {
+    expect(() => parseBoolean("maybe", "allow_darkwake_execution")).toThrow(CLIError);
   });
 });
 

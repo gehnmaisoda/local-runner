@@ -333,6 +333,38 @@ struct HandleWakeDarkWakeTests {
         #expect(history.isEmpty, "No pending records should be enqueued during DarkWake")
     }
 
+    @Test("Executes catch-up during DarkWake when global setting allows it")
+    func executeDuringDarkWakeWhenAllowed() async throws {
+        setupDirs()
+        defer { cleanupDirs() }
+
+        let taskStore = TaskStore(directory: testTasksDir)
+        let logStore = LogStore(directory: testLogsDir)
+        let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
+        scheduler.displayWakeState = DarkWakeDisplay()
+        let net = MockNetworkMonitor()
+        scheduler.networkMonitor = net
+        scheduler.applySettings(GlobalSettings(allowDarkWakeExecution: true))
+
+        let task = TaskDefinition(
+            id: "dw-allowed", name: "dw-allowed", command: "echo hi",
+            schedule: Schedule(type: .everyMinute),
+            enabled: true, catchUp: true
+        )
+        try taskStore.save(task)
+        scheduler.reloadTasks()
+
+        Log.clear()
+        scheduler.handleWake(lastSleepDate: Date().addingTimeInterval(-3600))
+
+        let logs = Log.entries()
+        let executed = logs.contains { $0.message.contains("キャッチアップ実行") && $0.message.contains("dw-allowed") }
+        #expect(executed, "Should execute catch-up during DarkWake when allow_darkwake_execution is true")
+
+        try? await Task.sleep(for: .milliseconds(500))
+        scheduler.shutdown()
+    }
+
     @Test("Catch-up executes after DarkWake transitions to Full Wake")
     func executeAfterFullWake() async throws {
         setupDirs()

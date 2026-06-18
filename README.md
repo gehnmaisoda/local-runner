@@ -115,7 +115,7 @@ lr doctor          # セットアップ診断
 
 ## Features
 
-- **Sleep/Wake Catch-up** — スリープ復帰時に逃したスケジュールを検知し、キャッチアップ実行。タスク単位で `catch_up: true/false` を設定可
+- **Sleep/Wake Catch-up** — スリープ復帰時に逃したスケジュールを検知し、キャッチアップ実行。タスク単位で `catch_up: true/false` を設定可。閉じた Mac を常時稼働機として使う場合は `settings.yaml` の `allow_darkwake_execution: true` で DarkWake / ディスプレイ消灯中の実行も許可できる
 - **Network-Aware Execution** — `NWPathMonitor` でネットワーク状態を監視。オフライン中のタスクは保留され、接続回復時に実行
 - **Execution Log** — 実行ごとに stdout/stderr/終了コード/実行時間を JSON で永続化
 - **Slack Notification** — 失敗・タイムアウト時に Slack Incoming Webhook で通知

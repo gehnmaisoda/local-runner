@@ -154,7 +154,7 @@ const HELP: Record<string, string> = {
 オプション:
   -n, --limit <N>   表示件数 (デフォルト: 20)
   --last <N>         表示件数 (--limit のエイリアス)
-  --output           stdout/stderr を表示
+  --output           stdout/stderr を表示（JSONでも明示指定時のみ含む）
   --json             JSON で出力
 
 例:

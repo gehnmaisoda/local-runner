@@ -125,7 +125,7 @@ lr status          # サマリー
 lr run <id>        # 即座に実行
 lr stop <id>       # 停止
 lr toggle <id>     # 有効/無効切り替え
-lr logs [id]       # 実行履歴
+lr logs [id]       # 実行履歴（ID指定でタスク別、--outputでstdout/stderrも表示）
 lr doctor          # セットアップ診断
 ```
 

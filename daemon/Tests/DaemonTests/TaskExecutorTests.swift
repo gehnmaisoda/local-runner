@@ -31,6 +31,29 @@ struct TaskExecutorTimeoutTests {
         #expect(record.stdout.contains("fast"))
     }
 
+    @Test("Large stdout and stderr do not block process completion")
+    func largeOutputDoesNotDeadlock() {
+        let executor = TaskExecutor()
+        let command = """
+        /usr/bin/awk 'BEGIN { for (i = 0; i < 20000; i++) print "stdout-0123456789" }'
+        echo stdout-tail
+        /usr/bin/awk 'BEGIN { for (i = 0; i < 20000; i++) print "stderr-0123456789" }' >&2
+        echo stderr-tail >&2
+        """
+        let task = makeTask(command: command, timeout: 5)
+        let record = executor.execute(task)
+
+        #expect(record.status == .success)
+        #expect(record.stdout.utf8.count < 17 * 1024)
+        #expect(record.stderr.utf8.count < 17 * 1024)
+        #expect(record.stdout.contains("stdout-0123456789"))
+        #expect(record.stderr.contains("stderr-0123456789"))
+        #expect(record.stdout.contains("bytes omitted"))
+        #expect(record.stderr.contains("bytes omitted"))
+        #expect(record.stdout.contains("stdout-tail"))
+        #expect(record.stderr.contains("stderr-tail"))
+    }
+
     @Test("Task that exceeds timeout gets timeout status")
     func exceedsTimeout() {
         let executor = TaskExecutor()

@@ -58,8 +58,10 @@ dist: build cli-build
 	cd dist && tar czf local-runner-$(VERSION)-arm64.tar.gz LocalRunner.app lr
 	@echo "Created dist/local-runner-$(VERSION)-arm64.tar.gz"
 
-# Install daemon as LaunchAgent (requires release build)
-install: build
+# Install matching source CLI and daemon as LaunchAgent
+install: build cli-build
+	mkdir -p "$(HOME)/.local/bin"
+	install -m 755 cli/lr "$(HOME)/.local/bin/lr"
 	cd cli && bun run index.ts install
 
 # Clean build artifacts

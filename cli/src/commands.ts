@@ -534,7 +534,7 @@ export async function showLogs(taskId: string | undefined, json: boolean, output
     }
 
     if (json) {
-      console.log(JSON.stringify(res.history));
+      console.log(JSON.stringify(historyForJSON(res.history, output)));
       return;
     }
 
@@ -572,6 +572,12 @@ export async function showLogs(taskId: string | undefined, json: boolean, output
       );
     }
   });
+}
+
+/** Keep JSON history lightweight unless stdout/stderr were explicitly requested. */
+export function historyForJSON(history: ExecutionRecord[], includeOutput: boolean) {
+  if (includeOutput) return history;
+  return history.map(({ stdout: _stdout, stderr: _stderr, ...record }) => record);
 }
 
 export async function showStatus(json: boolean) {

@@ -10,7 +10,7 @@ public final class TaskExecutor: @unchecked Sendable {
     /// SIGKILL までの猶予時間（秒）。
     private static let killGracePeriod: TimeInterval = 3
 
-    /// 永続化するstdout/stderrの上限。先頭2KiBと末尾を残し、AIログの肥大化を防ぐ。
+    /// 永続化するstdout/stderrの上限。先頭2KiBと末尾を残し、過剰なAIログの肥大化を防ぐ。
     static let maxCapturedOutputBytes = 16 * 1024
     private static let capturedOutputHeadBytes = 2 * 1024
 

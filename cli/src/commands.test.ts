@@ -3,6 +3,7 @@ import {
   formatDate, formatDuration, formatTimestamp, statusIcon, pad,
   formatSchedule, generateId, buildSchedule, applyScheduleEdits,
   statusLabel, parsePositiveInt, parseBoolean,
+  historyForJSON,
   CLIError, EXIT,
 } from "./commands.ts";
 
@@ -112,6 +113,32 @@ describe("pad", () => {
 
   test("handles empty string", () => {
     expect(pad("", 3)).toBe("   ");
+  });
+});
+
+describe("historyForJSON", () => {
+  const record = {
+    id: "run-1",
+    taskId: "backup",
+    taskName: "Backup",
+    startedAt: "2026-09-02T00:00:00Z",
+    stdout: "large stdout",
+    stderr: "large stderr",
+    status: "success",
+  } as const;
+
+  test("omits stdout and stderr by default", () => {
+    expect(historyForJSON([record], false)).toEqual([{
+      id: "run-1",
+      taskId: "backup",
+      taskName: "Backup",
+      startedAt: "2026-09-02T00:00:00Z",
+      status: "success",
+    }]);
+  });
+
+  test("includes stdout and stderr when explicitly requested", () => {
+    expect(historyForJSON([record], true)).toEqual([record]);
   });
 });
 

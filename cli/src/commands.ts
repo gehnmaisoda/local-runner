@@ -247,7 +247,7 @@ export async function listTasks(json: boolean) {
     }
 
     if (json) {
-      console.log(JSON.stringify(res.tasks));
+      console.log(JSON.stringify(res.tasks.map(taskStatusForJSON)));
       return;
     }
 
@@ -287,7 +287,7 @@ export async function showTask(taskId: string, json: boolean) {
     }
 
     if (json) {
-      console.log(JSON.stringify(t));
+      console.log(JSON.stringify(taskStatusForJSON(t)));
       return;
     }
 
@@ -576,8 +576,19 @@ export async function showLogs(taskId: string | undefined, json: boolean, output
 
 /** Keep JSON history lightweight unless stdout/stderr were explicitly requested. */
 export function historyForJSON(history: ExecutionRecord[], includeOutput: boolean) {
-  if (includeOutput) return history;
-  return history.map(({ stdout: _stdout, stderr: _stderr, ...record }) => record);
+  return history.map(record => executionRecordForJSON(record, includeOutput));
+}
+
+/** Metadata commands never include captured task output. */
+export function taskStatusForJSON(status: TaskStatus) {
+  if (!status.lastRun) return status;
+  return { ...status, lastRun: executionRecordForJSON(status.lastRun, false) };
+}
+
+function executionRecordForJSON(record: ExecutionRecord, includeOutput: boolean) {
+  if (includeOutput) return record;
+  const { stdout: _stdout, stderr: _stderr, ...metadata } = record;
+  return metadata;
 }
 
 export async function showStatus(json: boolean) {

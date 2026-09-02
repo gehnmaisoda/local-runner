@@ -115,7 +115,7 @@ struct ExecutionStatusTests {
 struct ExecutionTriggerTests {
     @Test("Trigger can be round-tripped through Codable")
     func triggerCodable() throws {
-        for trigger: ExecutionTrigger in [.scheduled, .catchup, .manual] {
+        for trigger: ExecutionTrigger in [.scheduled, .catchup, .manual, .event] {
             let record = ExecutionRecord(
                 taskId: "t", taskName: "test",
                 startedAt: Date(), finishedAt: Date(),
@@ -160,7 +160,7 @@ struct ExecutionTriggerTests {
 
     @Test("All trigger rawValues are distinct")
     func allDistinct() {
-        let all: [ExecutionTrigger] = [.scheduled, .catchup, .manual]
+        let all: [ExecutionTrigger] = [.scheduled, .catchup, .manual, .event]
         let rawValues = Set(all.map(\.rawValue))
         #expect(rawValues.count == all.count)
     }

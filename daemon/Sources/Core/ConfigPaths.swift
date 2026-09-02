@@ -68,4 +68,20 @@ public enum ConfigPaths: Sendable {
     public static var heartbeatFile: URL {
         dataDirectory.appendingPathComponent("heartbeat")
     }
+
+    /// Cloudflare Queue の接続情報。API token を含むため dotfiles 配下には置かない。
+    public static var queueConfigurationFile: URL {
+        dataDirectory.appendingPathComponent("queue.json")
+    }
+
+    /// 成功済みイベントIDの永続化ファイル。
+    public static var processedEventsFile: URL {
+        dataDirectory.appendingPathComponent("processed-events.json")
+    }
+
+    /// 実行中タスクへ渡すイベントpayloadの一時保存先。
+    public static var eventPayloadsDirectory: URL {
+        let dir = dataDirectory.appendingPathComponent("events")
+        return ensureDirectory(at: dir)
+    }
 }

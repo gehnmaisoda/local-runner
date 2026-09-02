@@ -45,7 +45,11 @@ public final class TaskExecutor: @unchecked Sendable {
 
     /// タスクを実行し、完了した ExecutionRecord を返す。
     /// `defaultTimeout` はタスク個別のタイムアウトが未設定の場合のフォールバック。
-    public func execute(_ task: TaskDefinition, defaultTimeout: Int? = nil) -> ExecutionRecord {
+    public func execute(
+        _ task: TaskDefinition,
+        defaultTimeout: Int? = nil,
+        additionalEnvironment: [String: String] = [:]
+    ) -> ExecutionRecord {
         var record = ExecutionRecord(
             taskId: task.id,
             taskName: task.name,
@@ -65,7 +69,9 @@ public final class TaskExecutor: @unchecked Sendable {
         let expandedDir = NSString(string: dir).expandingTildeInPath
         process.currentDirectoryURL = URL(fileURLWithPath: expandedDir)
 
-        process.environment = Self.complementedEnvironment(ProcessInfo.processInfo.environment)
+        var environment = Self.complementedEnvironment(ProcessInfo.processInfo.environment)
+        environment.merge(additionalEnvironment) { _, new in new }
+        process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

@@ -85,6 +85,8 @@ export function formatSchedule(schedule: Schedule): string {
     }
     case "cron":
       return `cron: ${schedule.expression ?? ""}`;
+    case "event":
+      return `event: ${schedule.topic ?? ""}`;
     default:
       return schedule.type;
   }
@@ -107,7 +109,7 @@ export function buildSchedule(options: Map<string, string>): Schedule {
   const type = options.get("schedule-type");
   if (!type) throw new CLIError("--schedule-type は必須です", EXIT.VALIDATION);
 
-  const validTypes = ["every_minute", "hourly", "daily", "weekly", "monthly", "cron"];
+  const validTypes = ["event", "every_minute", "hourly", "daily", "weekly", "monthly", "cron"];
   if (!validTypes.includes(type)) {
     throw new CLIError(
       `不正なスケジュールタイプ: ${type} (${validTypes.join(" | ")})`,
@@ -118,6 +120,12 @@ export function buildSchedule(options: Map<string, string>): Schedule {
   const schedule: Schedule = { type };
 
   switch (type) {
+    case "event":
+      if (!options.has("topic") || !options.get("topic")?.trim()) {
+        throw new CLIError("event タイプには --topic が必須です", EXIT.VALIDATION);
+      }
+      schedule.topic = options.get("topic")!.trim();
+      break;
     case "every_minute":
       break;
     case "hourly": {
@@ -168,6 +176,7 @@ export function applyScheduleEdits(existing: Schedule, options: Map<string, stri
   if (options.has("weekdays")) updated.weekdays = options.get("weekdays")!.split(",").map(Number);
   if (options.has("month-days")) updated.month_days = options.get("month-days")!.split(",").map(Number);
   if (options.has("cron")) updated.expression = options.get("cron");
+  if (options.has("topic")) updated.topic = options.get("topic")?.trim();
   return updated;
 }
 
@@ -326,7 +335,7 @@ export async function createTask(flags: Set<string>, options: Map<string, string
     working_directory: options.get("working-dir"),
     schedule,
     enabled: !flags.has("disabled"),
-    catch_up: !flags.has("no-catch-up"),
+    catch_up: schedule.type === "event" ? false : !flags.has("no-catch-up"),
     slack_notify: !flags.has("no-notify"),
     timeout: options.has("timeout") ? parsePositiveInt(options.get("timeout")!, "--timeout") : undefined,
   };

@@ -2,6 +2,7 @@ import Foundation
 
 /// スケジュール種別。
 public enum ScheduleType: String, Codable, Sendable, CaseIterable {
+    case event = "event"
     case everyMinute = "every_minute"
     case hourly = "hourly"
     case daily = "daily"
@@ -19,9 +20,10 @@ public struct Schedule: Codable, Sendable, Equatable {
     public var weekdays: [Int]?    // weekly (マルチセレクト): [1,3,5] = 月水金
     public var monthDays: [Int]?   // monthly: 日付リスト (-1 = 月末)
     public var expression: String? // cron: cron式
+    public var topic: String?      // event: イベントトピック
 
     enum CodingKeys: String, CodingKey {
-        case type, minute, time, weekday, weekdays, expression
+        case type, minute, time, weekday, weekdays, expression, topic
         case monthDays = "month_days"
     }
 
@@ -32,7 +34,8 @@ public struct Schedule: Codable, Sendable, Equatable {
         weekday: Int? = nil,
         weekdays: [Int]? = nil,
         monthDays: [Int]? = nil,
-        expression: String? = nil
+        expression: String? = nil,
+        topic: String? = nil
     ) {
         self.type = type
         self.minute = minute
@@ -41,6 +44,7 @@ public struct Schedule: Codable, Sendable, Equatable {
         self.weekdays = weekdays
         self.monthDays = monthDays
         self.expression = expression
+        self.topic = topic
     }
 
     // MARK: - コンビニエンス
@@ -58,6 +62,7 @@ public struct Schedule: Codable, Sendable, Equatable {
         .init(type: .monthly, time: time, monthDays: days)
     }
     public static func cron(_ expression: String) -> Schedule { .init(type: .cron, expression: expression) }
+    public static func event(_ topic: String) -> Schedule { .init(type: .event, topic: topic) }
 
     // MARK: - 表示
 
@@ -72,6 +77,7 @@ public struct Schedule: Codable, Sendable, Equatable {
 
     public var displayText: String {
         switch type {
+        case .event: return "イベント: \(topic ?? "")"
         case .everyMinute: return "毎分"
         case .hourly: return "毎時 \(minute ?? 0)分"
         case .daily: return "毎日 \(time ?? "00:00")"
@@ -93,6 +99,9 @@ public struct Schedule: Codable, Sendable, Equatable {
         let cal = Calendar.current
 
         switch type {
+        case .event:
+            return nil
+
         case .everyMinute:
             let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
             guard let truncated = cal.date(from: comps) else { return nil }

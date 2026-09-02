@@ -26,6 +26,7 @@ export interface Schedule {
   weekdays?: number[];    // weekly: [1,3,5] = Mon/Wed/Fri
   month_days?: number[];  // monthly: [-1, 1, 15]
   expression?: string;    // cron
+  topic?: string;         // event
 }
 
 export interface ExecutionRecord {
@@ -38,6 +39,9 @@ export interface ExecutionRecord {
   stdout: string;
   stderr: string;
   status: "running" | "success" | "failure" | "stopped" | "timeout" | "pending";
+  trigger?: "scheduled" | "catchup" | "manual" | "event";
+  event_id?: string;
+  event_topic?: string;
 }
 
 export interface TaskStatus {

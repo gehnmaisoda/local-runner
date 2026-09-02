@@ -260,6 +260,21 @@ struct TaskExecutorEnvironmentTests {
         #expect(output == FileManager.default.homeDirectoryForCurrentUser.path)
     }
 
+    @Test("Additional event environment overrides process environment")
+    func additionalEnvironment() {
+        let executor = TaskExecutor()
+        let task = TaskDefinition(
+            id: "event-env", name: "event-env",
+            command: "printf '%s|%s' \"$LR_EVENT_ID\" \"$LR_EVENT_TOPIC\""
+        )
+        let record = executor.execute(task, additionalEnvironment: [
+            "LR_EVENT_ID": "demo:1",
+            "LR_EVENT_TOPIC": "demo.completed",
+        ])
+        #expect(record.status == .success)
+        #expect(record.stdout == "demo:1|demo.completed")
+    }
+
     @Test("PATH is available in executed commands")
     func pathAvailable() {
         let executor = TaskExecutor()

@@ -64,7 +64,8 @@ const HELP: Record<string, string> = {
 使い方: lr create --name <名前> --command <コマンド> --schedule-type <タイプ> [オプション]
 
 スケジュール:
-  --schedule-type <type>  every_minute | hourly | daily | weekly | monthly | cron
+  --schedule-type <type>  event | every_minute | hourly | daily | weekly | monthly | cron
+  --topic <topic>          event の受信topic
   --time "HH:mm"          daily/weekly/monthly の実行時刻
   --minute <0-59>          hourly の実行分
   --weekdays "1,3,5"       weekly の曜日 (1=月..7=日)
@@ -83,6 +84,7 @@ const HELP: Record<string, string> = {
 
 例:
   lr create --name "DB バックアップ" --command "pg_dump mydb > dump.sql" --schedule-type daily --time "04:00"
+  lr create --name "商談取込" --command "./import.sh" --schedule-type event --topic "circleback.meeting.completed"
   lr create --name "ヘルスチェック" --command "curl -sf localhost:8080/health" --schedule-type cron --cron "*/5 * * * *"`,
 
   edit: `タスクを編集します。指定したフィールドだけを更新します。

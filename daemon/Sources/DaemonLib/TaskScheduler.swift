@@ -106,6 +106,29 @@ public final class TaskScheduler: @unchecked Sendable {
         executeTask(task, trigger: .manual)
     }
 
+    /// 受信イベントを topic が一致する1件のイベントタスクへ渡す。
+    /// 同じ topic に複数タスクがある場合は設定ミスとして実行しない。
+    public func runEvent(_ event: TaskEvent, completion: @escaping @Sendable (Bool) -> Void) {
+        let matchingTasks = lock.withLock {
+            tasks.filter {
+                $0.enabled && $0.schedule.type == .event && $0.schedule.topic == event.topic
+            }
+        }
+
+        guard matchingTasks.count == 1, let task = matchingTasks.first else {
+            Log.info("Scheduler", "イベント \(event.topic) の実行先は1件必要です（現在 \(matchingTasks.count) 件）")
+            completion(false)
+            return
+        }
+        guard !executor.isRunning(task.id) else {
+            Log.info("Scheduler", "イベントタスク \(task.name) は実行中のため再試行します")
+            completion(false)
+            return
+        }
+
+        executeTask(task, trigger: .event, event: event, completion: completion)
+    }
+
     public func stopTask(_ taskId: String) {
         executor.stop(taskId)
     }
@@ -335,16 +358,29 @@ public final class TaskScheduler: @unchecked Sendable {
         nextFireDates = ScheduleLogic.calculateNextFireDates(for: tasks, after: Date())
     }
 
-    private func executeTask(_ task: TaskDefinition, trigger: ExecutionTrigger = .scheduled) {
+    private func executeTask(
+        _ task: TaskDefinition,
+        trigger: ExecutionTrigger = .scheduled,
+        event: TaskEvent? = nil,
+        completion: (@Sendable (Bool) -> Void)? = nil
+    ) {
         guard !lock.withLock({ isShuttingDown }) else { return }
         Log.info("Scheduler", "実行開始: \(task.name)")
         onNotification?(.taskStarted(task.id))
 
         // running 状態の仮レコードを保存（UI に実行中表示用）
-        let placeholder = ExecutionRecord(taskId: task.id, taskName: task.name, command: task.command, workingDirectory: task.workingDirectory ?? "~", trigger: trigger)
+        let placeholder = ExecutionRecord(
+            taskId: task.id,
+            taskName: task.name,
+            command: task.command,
+            workingDirectory: task.workingDirectory ?? "~",
+            trigger: trigger,
+            eventId: event?.id,
+            eventTopic: event?.topic
+        )
         logStore.append(placeholder)
 
-        runTask(task, recordId: placeholder.id, trigger: trigger)
+        runTask(task, recordId: placeholder.id, trigger: trigger, event: event, completion: completion)
     }
 
     /// 保留キューから復帰したタスクを実行する。プレースホルダーは保留時に作成済み。
@@ -357,11 +393,21 @@ public final class TaskScheduler: @unchecked Sendable {
     }
 
     /// タスクを非同期実行し、指定レコードIDで結果を更新する。
-    private func runTask(_ task: TaskDefinition, recordId: UUID, trigger: ExecutionTrigger = .scheduled) {
+    private func runTask(
+        _ task: TaskDefinition,
+        recordId: UUID,
+        trigger: ExecutionTrigger = .scheduled,
+        event: TaskEvent? = nil,
+        completion: (@Sendable (Bool) -> Void)? = nil
+    ) {
         let defaultTimeout = lock.withLock { cachedSettings.effectiveDefaultTimeout }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            let result = self.executor.execute(task, defaultTimeout: defaultTimeout)
+            let result = self.executor.execute(
+                task,
+                defaultTimeout: defaultTimeout,
+                additionalEnvironment: event?.environment ?? [:]
+            )
             let finalRecord = ExecutionRecord(
                 id: recordId,
                 taskId: result.taskId,
@@ -374,7 +420,9 @@ public final class TaskScheduler: @unchecked Sendable {
                 stdout: result.stdout,
                 stderr: result.stderr,
                 status: result.status,
-                trigger: trigger
+                trigger: trigger,
+                eventId: event?.id,
+                eventTopic: event?.topic
             )
             self.logStore.update(finalRecord)
             self.onNotification?(.taskCompleted(task.id, record: finalRecord))
@@ -386,6 +434,7 @@ public final class TaskScheduler: @unchecked Sendable {
 
             let duration = finalRecord.durationText
             Log.info("Scheduler", "完了: \(task.name) → \(finalRecord.status.rawValue) (\(duration))")
+            completion?(finalRecord.status == .success)
         }
     }
 }

@@ -10,6 +10,10 @@ public final class TaskExecutor: @unchecked Sendable {
     /// SIGKILL までの猶予時間（秒）。
     private static let killGracePeriod: TimeInterval = 3
 
+    /// 永続化するstdout/stderrの上限。先頭2KiBと末尾を残し、AIログの肥大化を防ぐ。
+    static let maxCapturedOutputBytes = 16 * 1024
+    private static let capturedOutputHeadBytes = 2 * 1024
+
     /// LaunchAgent の最小 PATH にユーザーツールの代表的パスを補完する
     static let wellKnownPaths: [String] = [
         "/.local/bin",
@@ -73,10 +77,34 @@ public final class TaskExecutor: @unchecked Sendable {
         environment.merge(additionalEnvironment) { _, new in new }
         process.environment = environment
 
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        // Pipeを終了後まで読まないと、大量出力時にバッファが埋まり子プロセスが停止する。
+        // 一時ファイルへ直接流し、プロセス終了後にExecutionRecordへ取り込む。
+        let outputId = UUID().uuidString
+        let stdoutURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("local-runner-\(outputId).stdout")
+        let stderrURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("local-runner-\(outputId).stderr")
+        let privateAttributes: [FileAttributeKey: Any] = [.posixPermissions: 0o600]
+        guard FileManager.default.createFile(atPath: stdoutURL.path, contents: nil, attributes: privateAttributes),
+              FileManager.default.createFile(atPath: stderrURL.path, contents: nil, attributes: privateAttributes),
+              let stdoutHandle = FileHandle(forWritingAtPath: stdoutURL.path),
+              let stderrHandle = FileHandle(forWritingAtPath: stderrURL.path) else {
+            record.stderr = "タスク出力用の一時ファイルを作成できません"
+            record.exitCode = -1
+            record.finishedAt = Date()
+            record.status = .failure
+            try? FileManager.default.removeItem(at: stdoutURL)
+            try? FileManager.default.removeItem(at: stderrURL)
+            return record
+        }
+        defer {
+            try? stdoutHandle.close()
+            try? stderrHandle.close()
+            try? FileManager.default.removeItem(at: stdoutURL)
+            try? FileManager.default.removeItem(at: stderrURL)
+        }
+        process.standardOutput = stdoutHandle
+        process.standardError = stderrHandle
 
         lock.withLock { runningProcesses[task.id] = process }
 
@@ -95,11 +123,10 @@ public final class TaskExecutor: @unchecked Sendable {
                 process.waitUntilExit()
             }
 
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-
-            record.stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-            record.stderr = String(data: stderrData, encoding: .utf8) ?? ""
+            try? stdoutHandle.close()
+            try? stderrHandle.close()
+            record.stdout = Self.compactOutput(at: stdoutURL)
+            record.stderr = Self.compactOutput(at: stderrURL)
             record.exitCode = process.terminationStatus
             record.finishedAt = Date()
 
@@ -120,6 +147,33 @@ public final class TaskExecutor: @unchecked Sendable {
         }
 
         return record
+    }
+
+    /// 小さい出力はそのまま、大きい出力は診断に必要な冒頭と最終結果がある末尾だけを残す。
+    static func compactOutput(at url: URL, maxBytes: Int = maxCapturedOutputBytes) -> String {
+        guard maxBytes > 0,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let fileSize = attributes[.size] as? NSNumber else { return "" }
+
+        let size = fileSize.intValue
+        if size <= maxBytes {
+            let data = (try? Data(contentsOf: url)) ?? Data()
+            return String(decoding: data, as: UTF8.self)
+        }
+
+        let headSize = min(capturedOutputHeadBytes, maxBytes / 2)
+        let tailSize = maxBytes - headSize
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return "" }
+        defer { try? handle.close() }
+
+        let head = (try? handle.read(upToCount: headSize)) ?? Data()
+        try? handle.seek(toOffset: UInt64(size - tailSize))
+        let tail = (try? handle.read(upToCount: tailSize)) ?? Data()
+        let omitted = max(0, size - head.count - tail.count)
+
+        return String(decoding: head, as: UTF8.self)
+            + "\n...[LocalRunner: \(omitted) bytes omitted]...\n"
+            + String(decoding: tail, as: UTF8.self)
     }
 
     /// タイムアウト付きでプロセスの完了を待つ。タイムアウトした場合は SIGTERM → SIGKILL で停止し true を返す。

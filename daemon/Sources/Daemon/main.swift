@@ -8,12 +8,16 @@ let logStore = LogStore()
 let taskStore = TaskStore()
 let scheduler = TaskScheduler(taskStore: taskStore, logStore: logStore)
 let ipcServer = IPCServer(scheduler: scheduler, logStore: logStore)
+let queueConsumer = QueueConsumer { event, completion in
+    scheduler.runEvent(event, completion: completion)
+}
 
 // IPC サーバー起動
 ipcServer.start()
 
 // スケジューラ起動
 scheduler.start()
+queueConsumer.start()
 
 // スリープ復帰検知
 let wakeDetector = WakeDetector { lastAwake in
@@ -41,6 +45,7 @@ func installSignalHandler(signal sig: Int32) {
     let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
     source.setEventHandler {
         Log.info("main", "シグナル \(sig) を受信。シャットダウンを開始します...")
+        queueConsumer.stop()
         scheduler.shutdown()
         ipcServer.shutdown()
         Log.info("main", "シャットダウン完了。終了します")

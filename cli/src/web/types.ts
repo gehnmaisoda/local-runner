@@ -20,6 +20,7 @@ export interface Schedule {
   weekdays?: number[];    // weekly (マルチセレクト): [1,3,5]
   month_days?: number[];  // monthly: 日付リスト (-1 = 月末)
   expression?: string;    // cron
+  topic?: string;         // event
 }
 
 export interface ExecutionRecord {
@@ -34,7 +35,9 @@ export interface ExecutionRecord {
   stdout: string;
   stderr: string;
   status: "running" | "success" | "failure" | "stopped" | "timeout" | "pending";
-  trigger?: "scheduled" | "catchup" | "manual";
+  trigger?: "scheduled" | "catchup" | "manual" | "event";
+  event_id?: string;
+  event_topic?: string;
 }
 
 export interface TaskStatus {

@@ -70,6 +70,7 @@ export function statusIcon(status: ExecutionRecord["status"]): string {
 
 export function formatSchedule(schedule: Schedule): string {
   switch (schedule.type) {
+    case "event": return `イベント: ${schedule.topic ?? ""}`;
     case "every_minute": return "毎分";
     case "hourly": return `毎時 ${schedule.minute ?? 0}分`;
     case "daily": return `毎日 ${schedule.time ?? "00:00"}`;

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "local-runner-relay",
+  "account_id": "30ca88c92eb1a8acb8ff8520779ea8ae",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-02",
+  "observability": {
+    "enabled": true
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "EVENT_QUEUE",
+        "queue": "local-runner-events"
+      }
+    ]
+  }
+}

@@ -56,6 +56,22 @@ lr run hello
 lr logs hello --output
 ```
 
+### Cloud Queueからイベント実行する
+
+Cloudflare Queueを1本だけHTTP Pullし、topicに一致するローカルタスクを実行できる。Mac停止中のイベントはCloudflare側に残り、復帰後に順番に処理される。
+
+```bash
+lr create \
+  --name "Circleback商談取込" \
+  --command './import-meeting "$LR_EVENT_FILE"' \
+  --schedule-type event \
+  --topic circleback.meeting.completed
+```
+
+イベントタスクには `LR_EVENT_ID`、`LR_EVENT_TOPIC`、`LR_EVENT_FILE`、`LR_EVENT_ATTEMPT` が渡される。成功時だけackし、成功済みIDは30日間ローカルへ保存して再配信時の重複実行を防ぐ。同じtopicに設定できる有効タスクは1件。
+
+接続情報はtokenを含むためdotfilesとは分け、`~/Library/Application Support/LocalRunner/queue.json`（mode `600`）へ置く。Cloudflare RelayとQueueの作成手順は [relay/README.md](relay/README.md) を参照。
+
 ### Dotfiles で管理する
 
 タスク定義と設定は `~/.config/local-runner/` に保存される。このディレクトリを dotfiles リポジトリで管理すれば、マシン間でタスク設定を同期できる。
@@ -117,10 +133,11 @@ lr doctor          # セットアップ診断
 
 - **Sleep/Wake Catch-up** — スリープ復帰時に逃したスケジュールを検知し、キャッチアップ実行。タスク単位で `catch_up: true/false` を設定可。閉じた Mac を常時稼働機として使う場合は `settings.yaml` の `allow_darkwake_execution: true` で DarkWake / ディスプレイ消灯中の実行も許可できる
 - **Network-Aware Execution** — `NWPathMonitor` でネットワーク状態を監視。オフライン中のタスクは保留され、接続回復時に実行
+- **Cloud Queue Events** — 1本のCloudflare QueueをHTTP Pull。成功後ack、少数回retry、成功済みイベントIDの永続化に対応
 - **Execution Log** — 実行ごとに stdout/stderr/終了コード/実行時間を JSON で永続化
 - **Slack Notification** — 失敗・タイムアウト時に Slack Incoming Webhook で通知
 - **Task Hot Reload** — `~/.config/local-runner/tasks/` 内の YAML 変更を自動検知・リロード
-- **Flexible Scheduling** — `every_minute` / `hourly` / `daily` / `weekly` / `monthly` / `cron` 式に対応
+- **Flexible Scheduling** — `event` / `every_minute` / `hourly` / `daily` / `weekly` / `monthly` / `cron` 式に対応
 - **Dotfiles 管理** — タスク定義は `~/.config/local-runner/tasks/*.yaml` に保存される。dotfiles リポジトリに含めれば、マシン移行時もタスク設定をそのまま持ち運べる
 
 ## License

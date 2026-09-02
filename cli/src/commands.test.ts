@@ -162,6 +162,11 @@ describe("formatSchedule", () => {
     expect(formatSchedule({ type: "cron", expression: "*/5 * * * *" })).toBe("cron: */5 * * * *");
   });
 
+  test("formats event topic", () => {
+    expect(formatSchedule({ type: "event", topic: "circleback.meeting.completed" }))
+      .toBe("event: circleback.meeting.completed");
+  });
+
   test("handles unknown type", () => {
     expect(formatSchedule({ type: "custom" })).toBe("custom");
   });
@@ -239,6 +244,16 @@ describe("buildSchedule", () => {
     expect(buildSchedule(opts)).toEqual({ type: "cron", expression: "*/5 * * * *" });
   });
 
+  test("builds event schedule", () => {
+    const opts = new Map([["schedule-type", "event"], ["topic", "circleback.meeting.completed"]]);
+    expect(buildSchedule(opts)).toEqual({ type: "event", topic: "circleback.meeting.completed" });
+  });
+
+  test("throws when event type has no topic", () => {
+    const opts = new Map([["schedule-type", "event"]]);
+    expect(() => buildSchedule(opts)).toThrow(CLIError);
+  });
+
   test("throws when schedule-type is missing", () => {
     expect(() => buildSchedule(new Map())).toThrow(CLIError);
     try { buildSchedule(new Map()); } catch (e: any) {
@@ -309,6 +324,12 @@ describe("applyScheduleEdits", () => {
     const opts = new Map([["cron", "*/5 * * * *"]]);
     const result = applyScheduleEdits(existing, opts);
     expect(result.expression).toBe("*/5 * * * *");
+  });
+
+  test("updates event topic without changing type", () => {
+    const existing = { type: "event", topic: "old.topic" };
+    const opts = new Map([["topic", "new.topic"]]);
+    expect(applyScheduleEdits(existing, opts)).toEqual({ type: "event", topic: "new.topic" });
   });
 
   test("updates minute without changing type", () => {

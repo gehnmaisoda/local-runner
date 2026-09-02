@@ -170,6 +170,7 @@ function groupByDirectory(tasks: TaskStatus[]): TaskGroup[] {
 // --- Constants ---
 
 const SCHEDULE_TYPES = [
+  { value: "event", label: "イベント" },
   { value: "every_minute", label: "毎分" },
   { value: "hourly", label: "毎時" },
   { value: "daily", label: "毎日" },
@@ -231,10 +232,11 @@ function formatTimeValue(hour: number, minute: number): string {
 
 function buildSchedule(
   type: string, hour: number, minute: number,
-  weekdays: number[], monthDays: number[], cronExpr: string,
+  weekdays: number[], monthDays: number[], cronExpr: string, eventTopic: string,
 ): Schedule {
   const time = formatTimeValue(hour, minute);
   switch (type) {
+    case "event":   return { type, topic: eventTopic.trim() };
     case "hourly":  return { type, minute };
     case "daily":   return { type, time };
     case "weekly":  return { type, time, weekdays };
@@ -300,6 +302,7 @@ interface TaskFormState {
   weekdays: number[]; toggleWeekday: (d: number) => void;
   monthDays: number[]; toggleMonthDay: (d: number) => void;
   cronExpr: string; setCronExpr: (v: string) => void;
+  eventTopic: string; setEventTopic: (v: string) => void;
 }
 
 function useTaskForm(task?: TaskDefinition): TaskFormState {
@@ -328,6 +331,7 @@ function useTaskForm(task?: TaskDefinition): TaskFormState {
     return [1];
   });
   const [cronExpr, setCronExpr] = useState(task?.schedule.expression ?? "");
+  const [eventTopic, setEventTopic] = useState(task?.schedule.topic ?? "");
 
   const toggleWeekday = (day: number) => {
     setWeekdays((prev) => {
@@ -349,6 +353,7 @@ function useTaskForm(task?: TaskDefinition): TaskFormState {
     catchUp, setCatchUp, slackNotify, setSlackNotify, slackMentions, setSlackMentions, timeout, setTimeout_,
     scheduleType, setScheduleType, hour, setHour, minute, setMinute,
     weekdays, toggleWeekday, monthDays, toggleMonthDay, cronExpr, setCronExpr,
+    eventTopic, setEventTopic,
   };
 }
 
@@ -358,9 +363,12 @@ function buildTaskObj(form: TaskFormState, id: string, enabled: boolean): TaskDe
     name: form.name.trim(),
     command: form.command,
     working_directory: form.workingDirectory.trim() || undefined,
-    schedule: buildSchedule(form.scheduleType, form.hour, form.minute, form.weekdays, form.monthDays, form.cronExpr),
+    schedule: buildSchedule(
+      form.scheduleType, form.hour, form.minute, form.weekdays,
+      form.monthDays, form.cronExpr, form.eventTopic,
+    ),
     enabled,
-    catch_up: form.catchUp,
+    catch_up: form.scheduleType === "event" ? false : form.catchUp,
     slack_notify: form.slackNotify,
     slack_mentions: form.slackMentions.length > 0 ? form.slackMentions : undefined,
     timeout: form.timeout > 0 ? form.timeout : undefined,
@@ -427,6 +435,21 @@ function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackC
               </button>
             ))}
           </div>
+
+          {form.scheduleType === "event" && (
+            <>
+              <input
+                className="form-input sched-cron"
+                type="text"
+                value={form.eventTopic}
+                onChange={(e) => form.setEventTopic(e.target.value)}
+                placeholder="circleback.meeting.completed"
+                autoComplete="off"
+                data-1p-ignore
+              />
+              <div className="sched-hint">共有Queueから同じtopicのイベントを受け取ったときに実行します</div>
+            </>
+          )}
 
           {form.scheduleType === "every_minute" && (
             <div className="sched-hint">毎分実行されます</div>
@@ -533,7 +556,7 @@ function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackC
       <div className="detail-section">
         <label className="detail-label">オプション</label>
         <div className="checkbox-group">
-          <label className="checkbox-label">
+          {form.scheduleType !== "event" && <label className="checkbox-label">
             <input type="checkbox" checked={form.catchUp} onChange={(e) => form.setCatchUp(e.target.checked)} />
             キャッチアップ実行
             <span className="tooltip-wrap">
@@ -548,7 +571,7 @@ function TaskFormFields({ form, slackConfigured }: { form: TaskFormState; slackC
                 例: 毎時 30分 のタスク → 09:30〜11:30 の3回分スキップ → 12:00 に復帰 → 即座に1回だけ実行
               </span>
             </span>
-          </label>
+          </label>}
         </div>
         <div className="timeout-row">
           <label className="detail-label-inline">タイムアウト</label>
@@ -745,7 +768,11 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete, sl
 
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    if (!form.name.trim() || !form.command || form.dirValidating.current) { setSaveStatus("idle"); return; }
+    if (!form.name.trim() || !form.command || form.dirValidating.current
+      || (form.scheduleType === "event" && !form.eventTopic.trim())) {
+      setSaveStatus("idle");
+      return;
+    }
 
     setSaveStatus("idle");
     const taskObj = buildTaskObj(form, task.id, task.enabled);
@@ -758,7 +785,7 @@ function TaskDetailPanel({ task, taskStatus, onSave, onRun, onStop, onDelete, sl
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id, form.name, form.command, form.workingDirectory, form.scheduleType, form.hour, form.minute, JSON.stringify(form.weekdays), JSON.stringify(form.monthDays), form.cronExpr, form.catchUp, form.slackNotify, JSON.stringify(form.slackMentions), form.timeout]);
+  }, [task.id, form.name, form.command, form.workingDirectory, form.scheduleType, form.hour, form.minute, JSON.stringify(form.weekdays), JSON.stringify(form.monthDays), form.cronExpr, form.eventTopic, form.catchUp, form.slackNotify, JSON.stringify(form.slackMentions), form.timeout]);
 
   return (
     <div className="detail-panel">
@@ -845,7 +872,8 @@ function NewTaskModal({ onSave, onClose, slackConfigured }: {
   const [creating, setCreating] = useState(false);
 
   const hasContent = form.name.trim() !== "" || form.command !== "";
-  const canCreate = form.name.trim() !== "" && form.command !== "";
+  const canCreate = form.name.trim() !== "" && form.command !== ""
+    && (form.scheduleType !== "event" || form.eventTopic.trim() !== "");
 
   // モーダル表示中は背後のスクロールを無効化
   useEffect(() => {

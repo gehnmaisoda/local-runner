@@ -15,6 +15,7 @@ public enum ExecutionTrigger: String, Codable, Sendable {
     case scheduled  // 通常のスケジュール実行
     case catchup    // スリープ復帰後のキャッチアップ実行
     case manual     // 手動実行 (run_task)
+    case event      // Cloud Queue から受信したイベント
 }
 
 /// タスク1回分の実行記録。
@@ -32,9 +33,15 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
     public var status: ExecutionStatus
     /// 実行トリガー。既存レコード（フィールドなし）との後方互換のため Optional。nil は .scheduled 相当。
     public var trigger: ExecutionTrigger?
+    /// イベント実行時の重複排除キー。
+    public var eventId: String?
+    /// イベント実行時のルーティングキー。
+    public var eventTopic: String?
 
     enum CodingKeys: String, CodingKey {
         case id, taskId, taskName, command, startedAt, finishedAt, exitCode, stdout, stderr, status, trigger
+        case eventId = "event_id"
+        case eventTopic = "event_topic"
         case workingDirectory = "working_directory"
     }
 
@@ -50,7 +57,9 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
         stdout: String = "",
         stderr: String = "",
         status: ExecutionStatus = .running,
-        trigger: ExecutionTrigger? = nil
+        trigger: ExecutionTrigger? = nil,
+        eventId: String? = nil,
+        eventTopic: String? = nil
     ) {
         self.id = id
         self.taskId = taskId
@@ -64,6 +73,8 @@ public struct ExecutionRecord: Codable, Sendable, Identifiable, Equatable {
         self.stderr = stderr
         self.status = status
         self.trigger = trigger
+        self.eventId = eventId
+        self.eventTopic = eventTopic
     }
 
     /// 実行時間（秒）。実行中の場合は nil。

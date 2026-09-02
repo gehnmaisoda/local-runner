@@ -3,7 +3,7 @@ import {
   formatDate, formatDuration, formatTimestamp, statusIcon, pad,
   formatSchedule, generateId, buildSchedule, applyScheduleEdits,
   statusLabel, parsePositiveInt, parseBoolean,
-  historyForJSON,
+  historyForJSON, taskStatusForJSON,
   CLIError, EXIT,
 } from "./commands.ts";
 
@@ -139,6 +139,39 @@ describe("historyForJSON", () => {
 
   test("includes stdout and stderr when explicitly requested", () => {
     expect(historyForJSON([record], true)).toEqual([record]);
+  });
+});
+
+describe("taskStatusForJSON", () => {
+  test("omits captured output from lastRun", () => {
+    expect(taskStatusForJSON({
+      task: { id: "backup", name: "Backup" },
+      isRunning: false,
+      lastRun: {
+        id: "run-1",
+        taskId: "backup",
+        taskName: "Backup",
+        startedAt: "2026-09-02T00:00:00Z",
+        stdout: "large stdout",
+        stderr: "large stderr",
+        status: "success",
+      },
+    } as any)).toEqual({
+      task: { id: "backup", name: "Backup" },
+      isRunning: false,
+      lastRun: {
+        id: "run-1",
+        taskId: "backup",
+        taskName: "Backup",
+        startedAt: "2026-09-02T00:00:00Z",
+        status: "success",
+      },
+    });
+  });
+
+  test("leaves statuses without history unchanged", () => {
+    const status = { task: { id: "backup", name: "Backup" }, isRunning: false } as any;
+    expect(taskStatusForJSON(status)).toBe(status);
   });
 });
 

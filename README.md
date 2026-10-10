@@ -135,7 +135,7 @@ lr doctor          # セットアップ診断
 - **Network-Aware Execution** — `NWPathMonitor` でネットワーク状態を監視。オフライン中のタスクは保留され、接続回復時に実行
 - **Cloud Queue Events** — 1本のCloudflare QueueをHTTP Pull。成功後ack、少数回retry、成功済みイベントIDの永続化に対応
 - **Execution Log** — 実行ごとに stdout/stderr/終了コード/実行時間を JSON で永続化
-- **Slack Notification** — 失敗・タイムアウト時に Slack Incoming Webhook で通知
+- **Slack Notification** — タスク完了時に Slack Bot Token で通知。トークンは `settings.yaml` の `slack_bot_token` に直接書くか、`slack_bot_token_command` に「トークンを標準出力に返すコマンド」を指定してシークレットマネージャーから読める（設定ファイルに平文を置かずに済む）
 - **Task Hot Reload** — `~/.config/local-runner/tasks/` 内の YAML 変更を自動検知・リロード
 - **Flexible Scheduling** — `event` / `every_minute` / `hourly` / `daily` / `weekly` / `monthly` / `cron` 式に対応
 - **Dotfiles 管理** — タスク定義は `~/.config/local-runner/tasks/*.yaml` に保存される。dotfiles リポジトリに含めれば、マシン移行時もタスク設定をそのまま持ち運べる

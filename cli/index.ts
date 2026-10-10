@@ -185,6 +185,9 @@ const HELP: Record<string, string> = {
 設定キー:
   default_timeout      デフォルトタイムアウト (秒)
   slack_bot_token      Slack Bot Token (xoxb-...)
+  slack_bot_token_command
+                       Bot Token を標準出力に返すコマンド。slack_bot_token が空のときに使う。
+                       トークンを設定ファイルに平文で置かずに済む
   slack_channel        Slack 通知先チャンネル ID
 
 オプション:
@@ -194,6 +197,8 @@ const HELP: Record<string, string> = {
   lr config get
   lr config set default_timeout 1800
   lr config set slack_bot_token "xoxb-..."
+  lr config set slack_bot_token_command "op read op://vault/slack-bot/credential"
+  lr config set slack_bot_token ""   # 直接指定を消してコマンドに切り替える
   lr config set slack_channel "C1234567890"`,
 
   syslog: `デーモンのシステムログを表示します。
@@ -346,7 +351,8 @@ async function main() {
       } else if (sub === "set") {
         const key = args.positionals[2];
         const value = args.positionals[3];
-        if (!key || !value) {
+        // 空文字は「値を消す」指定として通す（例: lr config set slack_bot_token ""）
+        if (!key || value === undefined) {
           throw new CLIError("使い方: lr config set <key> <value>", EXIT.VALIDATION);
         }
         await configSet(key, value, json);

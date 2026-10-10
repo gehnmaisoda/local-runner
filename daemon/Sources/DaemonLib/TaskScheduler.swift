@@ -283,6 +283,7 @@ public final class TaskScheduler: @unchecked Sendable {
     public func applySettings(_ settings: GlobalSettings) {
         lock.withLock { cachedSettings = settings }
         slackNotifier.botToken = settings.slackBotToken
+        slackNotifier.botTokenCommand = settings.slackBotTokenCommand
         slackNotifier.channel = settings.slackChannel
     }
 

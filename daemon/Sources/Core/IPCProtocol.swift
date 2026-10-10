@@ -143,6 +143,9 @@ public struct IPCNotification: Codable, Sendable {
 /// アプリ全体の設定。
 public struct GlobalSettings: Codable, Sendable, Equatable {
     public var slackBotToken: String?
+    /// Bot Token を標準出力に返すコマンド。`slackBotToken` が空のときに使う。
+    /// トークンを設定ファイルに平文で置かず、シークレットマネージャーなどから読むためのもの。
+    public var slackBotTokenCommand: String?
     public var slackChannel: String?
     public var slackChannelName: String?
     public var defaultTimeout: Int?
@@ -155,9 +158,11 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
         slackChannel: String? = nil,
         slackChannelName: String? = nil,
         defaultTimeout: Int? = nil,
-        allowDarkWakeExecution: Bool? = nil
+        allowDarkWakeExecution: Bool? = nil,
+        slackBotTokenCommand: String? = nil
     ) {
         self.slackBotToken = slackBotToken
+        self.slackBotTokenCommand = slackBotTokenCommand
         self.slackChannel = slackChannel
         self.slackChannelName = slackChannelName
         self.defaultTimeout = defaultTimeout
@@ -176,6 +181,7 @@ public struct GlobalSettings: Codable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case slackBotToken = "slack_bot_token"
+        case slackBotTokenCommand = "slack_bot_token_command"
         case slackChannel = "slack_channel"
         case slackChannelName = "slack_channel_name"
         case defaultTimeout = "default_timeout"

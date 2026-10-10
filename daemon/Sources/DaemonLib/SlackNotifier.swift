@@ -4,6 +4,8 @@ import Core
 /// Slack Bot Token + chat.postMessage API を使って通知を送信する。
 public final class SlackNotifier: @unchecked Sendable {
     public var botToken: String?
+    /// `botToken` が空のときに実行し、標準出力を Bot Token として使うコマンド。
+    public var botTokenCommand: String?
     public var channel: String?
 
     private static let apiURL = URL(string: "https://slack.com/api/chat.postMessage")!
@@ -40,8 +42,10 @@ public final class SlackNotifier: @unchecked Sendable {
 
     /// タスク完了を Slack に通知し、スレッドに実行ログを追記する。
     public func notifyCompletion(task: TaskDefinition, record: ExecutionRecord) {
-        guard let token = botToken, !token.isEmpty,
-              let channel = channel, !channel.isEmpty else { return }
+        guard let channel = channel, !channel.isEmpty else { return }
+        let directToken = botToken
+        let tokenCommand = botTokenCommand
+        guard SlackTokenResolver.isConfigured(token: directToken, command: tokenCommand) else { return }
 
         let emoji = record.status == .success ? ":white_check_mark:" : record.status == .timeout ? ":alarm_clock:" : ":x:"
 
@@ -76,9 +80,20 @@ public final class SlackNotifier: @unchecked Sendable {
             ],
         ]
 
-        postMessage(token: token, payload: payload) { [weak self] threadTs in
-            guard let self, let threadTs else { return }
-            self.postLogToThread(token: token, channel: channel, threadTs: threadTs, record: record)
+        // payload は [String: Any] で Sendable ではないので、キューをまたぐ前に Data にしておく
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+
+        // コマンドでの解決は数秒かかりうるので、呼び出し元（スケジューラ）を止めない
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            guard let token = SlackTokenResolver.resolve(token: directToken, command: tokenCommand) else {
+                Log.info("Slack", "Bot Token を取得できないため通知をスキップしました")
+                return
+            }
+            self.postMessage(token: token, body: body) { [weak self] threadTs in
+                guard let self, let threadTs else { return }
+                self.postLogToThread(token: token, channel: channel, threadTs: threadTs, record: record)
+            }
         }
     }
 
@@ -116,16 +131,12 @@ public final class SlackNotifier: @unchecked Sendable {
             "blocks": blocks,
         ]
 
-        postMessage(token: token, payload: payload)
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        postMessage(token: token, body: body)
     }
 
     /// chat.postMessage を送信する。completion で thread_ts を返す。
-    private func postMessage(token: String, payload: [String: Any], completion: (@Sendable (String?) -> Void)? = nil) {
-        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
-            completion?(nil)
-            return
-        }
-
+    private func postMessage(token: String, body: Data, completion: (@Sendable (String?) -> Void)? = nil) {
         var request = URLRequest(url: Self.apiURL)
         request.httpMethod = "POST"
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")

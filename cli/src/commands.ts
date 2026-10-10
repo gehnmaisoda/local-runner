@@ -655,14 +655,18 @@ export async function configGet(json: boolean) {
     const s = res.settings;
     console.log(`デフォルトタイムアウト: ${s.default_timeout ?? 3600}秒`);
     console.log(`DarkWake/ディスプレイ消灯中の実行: ${s.allow_darkwake_execution ? "許可" : "停止"}`);
-    console.log(`Slack Bot Token:       ${s.slack_bot_token ? "(設定済み)" : "(未設定)"}`);
+    const tokenDisplay = s.slack_bot_token ? "(設定済み)" : s.slack_bot_token_command ? "(コマンドで取得)" : "(未設定)";
+    console.log(`Slack Bot Token:       ${tokenDisplay}`);
+    if (s.slack_bot_token_command) {
+      console.log(`Slack Token コマンド:  ${s.slack_bot_token_command}`);
+    }
     const channelDisplay = s.slack_channel_name ? `#${s.slack_channel_name} (${s.slack_channel})` : s.slack_channel;
     console.log(`Slack Channel:         ${channelDisplay ?? "(未設定)"}`);
   });
 }
 
 export async function configSet(key: string, value: string, json: boolean) {
-  const validKeys = ["default_timeout", "slack_bot_token", "slack_channel", "allow_darkwake_execution"];
+  const validKeys = ["default_timeout", "slack_bot_token", "slack_bot_token_command", "slack_channel", "allow_darkwake_execution"];
   if (!validKeys.includes(key)) {
     throw new CLIError(
       `不明な設定キー: ${key} (使用可能: ${validKeys.join(", ")})`,
@@ -680,7 +684,11 @@ export async function configSet(key: string, value: string, json: boolean) {
         current.default_timeout = parsePositiveInt(value, "default_timeout");
         break;
       case "slack_bot_token":
-        current.slack_bot_token = value;
+        // 空文字は「未設定」として消す（slack_bot_token_command に切り替えるときに使う）
+        current.slack_bot_token = value || undefined;
+        break;
+      case "slack_bot_token_command":
+        current.slack_bot_token_command = value || undefined;
         break;
       case "slack_channel":
         current.slack_channel = value;
@@ -698,7 +706,7 @@ export async function configSet(key: string, value: string, json: boolean) {
     if (json) {
       console.log(JSON.stringify({ success: true }));
     } else {
-      console.log(`${key} を ${value} に設定しました。`);
+      console.log(key === "slack_bot_token" ? `${key} を${value ? "設定" : "削除"}しました。` : `${key} を ${value} に設定しました。`);
     }
   });
 }

@@ -36,6 +36,16 @@ struct GlobalSettingsSlackTests {
         #expect(decoded.allowDarkWakeExecution == true)
     }
 
+    @Test("Token command roundtrips under its snake_case key")
+    func tokenCommandRoundtrip() throws {
+        let settings = GlobalSettings(slackChannel: "C1", slackBotTokenCommand: "get-token")
+        let data = try JSONEncoder().encode(settings)
+        #expect(String(data: data, encoding: .utf8)!.contains("slack_bot_token_command"))
+        let decoded = try JSONDecoder().decode(GlobalSettings.self, from: data)
+        #expect(decoded.slackBotTokenCommand == "get-token")
+        #expect(decoded.slackBotToken == nil)
+    }
+
     @Test("JSON uses snake_case keys")
     func snakeCaseKeys() throws {
         let settings = GlobalSettings(slackBotToken: "xoxb-x", slackChannel: "C1", slackChannelName: "test")

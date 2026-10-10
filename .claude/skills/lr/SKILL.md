@@ -121,6 +121,9 @@ lr config get --json
 # 設定変更
 lr config set default_timeout 1800 --json
 lr config set slack_bot_token "xoxb-..." --json
+# トークンを設定ファイルに平文で置かない場合: 標準出力にトークンを返すコマンドを指定する
+lr config set slack_bot_token_command "op read op://vault/slack-bot/credential" --json
+lr config set slack_bot_token "" --json   # 直接指定を消してコマンドに切り替える
 lr config set slack_channel "C1234567890" --json
 ```
 

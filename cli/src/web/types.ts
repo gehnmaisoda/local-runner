@@ -49,6 +49,8 @@ export interface TaskStatus {
 
 export interface GlobalSettings {
   slack_bot_token?: string;
+  /** Bot Token を標準出力に返すコマンド。slack_bot_token が空のときに使う。 */
+  slack_bot_token_command?: string;
   slack_channel?: string;
   slack_channel_name?: string;
   default_timeout?: number;

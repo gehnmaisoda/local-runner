@@ -31,6 +31,7 @@ function slackErrorMessage(error: string): string {
 
 export function SettingsView({ settings, loading, onSave }: Props) {
   const [botToken, setBotToken] = useState("");
+  const [tokenCommand, setTokenCommand] = useState("");
   const [slackChannel, setSlackChannel] = useState("");
   const [slackChannelName, setSlackChannelName] = useState("");
   const [defaultTimeout, setDefaultTimeout] = useState(DEFAULT_TIMEOUT);
@@ -54,6 +55,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     if (!settings || initialized.current) return;
     initialized.current = true;
     setBotToken(settings.slack_bot_token ?? "");
+    setTokenCommand(settings.slack_bot_token_command ?? "");
     setSlackChannel(settings.slack_channel ?? "");
     setSlackChannelName(settings.slack_channel_name ?? "");
     setDefaultTimeout(settings.default_timeout ?? DEFAULT_TIMEOUT);
@@ -74,6 +76,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
       setSaveStatus("saving");
       const ok = await onSaveRef.current({
         slack_bot_token: botToken.trim() || undefined,
+        slack_bot_token_command: tokenCommand.trim() || undefined,
         slack_channel: slackChannel || undefined,
         slack_channel_name: slackChannelName || undefined,
         default_timeout: defaultTimeout > 0 ? defaultTimeout : undefined,
@@ -83,7 +86,10 @@ export function SettingsView({ settings, loading, onSave }: Props) {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [botToken, slackChannel, slackChannelName, defaultTimeout, allowDarkWakeExecution]);
+  }, [botToken, tokenCommand, slackChannel, slackChannelName, defaultTimeout, allowDarkWakeExecution]);
+
+  // Bot Token は直接指定でもコマンドでもよい
+  const tokenConfigured = !!(botToken.trim() || tokenCommand.trim());
 
   // 「変更」ボタン押下時にチャンネル一覧を取得
   const handleStartPicking = useCallback(async () => {
@@ -115,7 +121,7 @@ export function SettingsView({ settings, loading, onSave }: Props) {
   };
 
   const handleTestSend = async () => {
-    if (!botToken || !slackChannel) return;
+    if (!tokenConfigured || !slackChannel) return;
     setTestStatus("sending");
     setTestError(null);
     try {
@@ -207,6 +213,23 @@ export function SettingsView({ settings, loading, onSave }: Props) {
             </div>
           </div>
           <div className="settings-field">
+            <label className="settings-label">Bot Token 取得コマンド</label>
+            <input
+              className="form-input"
+              type="text"
+              value={tokenCommand}
+              onChange={(e) => setTokenCommand(e.target.value)}
+              placeholder="op read op://vault/slack-bot/credential"
+              autoComplete="off"
+              spellCheck={false}
+              data-1p-ignore
+            />
+            <div className="field-hint-small">
+              Bot Token を標準出力に返すコマンド。上の Bot Token が空のときに実行されます。
+              トークンを設定ファイルに平文で置きたくない場合に使います。
+            </div>
+          </div>
+          <div className="settings-field">
             <label className="settings-label">通知先チャンネル</label>
             {channelPicking ? (
               channelsLoading ? (
@@ -234,13 +257,13 @@ export function SettingsView({ settings, loading, onSave }: Props) {
                 <span className="settings-channel-display">
                   {slackChannelName ? `#${slackChannelName}` : slackChannel || "(未設定)"}
                 </span>
-                {botToken && (
+                {tokenConfigured && (
                   <button className="btn-small" onClick={handleStartPicking}>変更</button>
                 )}
               </div>
             )}
           </div>
-          {botToken && slackChannel && (
+          {tokenConfigured && slackChannel && (
             <div className="settings-field">
               <button
                 className="btn-small"

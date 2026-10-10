@@ -1,4 +1,5 @@
 import { IPCClient, getSocketPath, type IPCNotification, type IPCRequest, type IPCResponse } from "./ipc.ts";
+import { resolveSlackToken } from "./slack-token.ts";
 import { existsSync, statSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
@@ -162,7 +163,7 @@ async function handleAPI(req: Request): Promise<Response> {
 
     if (path === "/api/slack/channels" && req.method === "GET") {
       const token = await getSlackToken();
-      if (!token) return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+      if (!token) return Response.json({ ok: false, error: "Slack Bot Token を取得できません（slack_bot_token または slack_bot_token_command を確認してください）" }, { status: 400 });
       return slackProxy(token, "https://slack.com/api/conversations.list", {
         types: "public_channel",
         exclude_archived: "true",
@@ -172,7 +173,7 @@ async function handleAPI(req: Request): Promise<Response> {
 
     if (path === "/api/slack/users" && req.method === "GET") {
       const token = await getSlackToken();
-      if (!token) return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+      if (!token) return Response.json({ ok: false, error: "Slack Bot Token を取得できません（slack_bot_token または slack_bot_token_command を確認してください）" }, { status: 400 });
       return slackProxy(token, "https://slack.com/api/users.list", { limit: "200" });
     }
 
@@ -185,7 +186,7 @@ async function handleAPI(req: Request): Promise<Response> {
       }
       const token = await getSlackToken();
       if (!token) {
-        return Response.json({ ok: false, error: "slack_bot_token が設定されていません" }, { status: 400 });
+        return Response.json({ ok: false, error: "Slack Bot Token を取得できません（slack_bot_token または slack_bot_token_command を確認してください）" }, { status: 400 });
       }
       return slackProxy(token, "https://slack.com/api/chat.postMessage", {}, {
         channel,
@@ -292,11 +293,11 @@ export async function startServer(preferredPort?: number) {
 
 // --- Slack API helpers ---
 
-/** 保存済みの設定から Slack Bot Token を取得する。 */
+/** 保存済みの設定から Slack Bot Token を取得する（直接指定がなければコマンドを実行する）。 */
 async function getSlackToken(): Promise<string | null> {
   try {
     const res = await sendToIPC({ action: "get_settings" });
-    return res.settings?.slack_bot_token || null;
+    return await resolveSlackToken(res.settings);
   } catch {
     return null;
   }

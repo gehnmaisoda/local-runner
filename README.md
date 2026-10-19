@@ -62,10 +62,10 @@ Cloudflare Queueを1本だけHTTP Pullし、topicに一致するローカルタ�
 
 ```bash
 lr create \
-  --name "Circleback商談取込" \
+  --name "商談取込" \
   --command './import-meeting "$LR_EVENT_FILE"' \
   --schedule-type event \
-  --topic circleback.meeting.completed
+  --topic meeting.completed
 ```
 
 イベントタスクには `LR_EVENT_ID`、`LR_EVENT_TOPIC`、`LR_EVENT_FILE`、`LR_EVENT_ATTEMPT` が渡される。成功時だけackし、成功済みIDは30日間ローカルへ保存して再配信時の重複実行を防ぐ。同じtopicに設定できる有効タスクは1件。
